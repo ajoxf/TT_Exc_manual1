@@ -58,8 +58,26 @@ def phase1(out):
     print(f"config spread table marker row={tbl_marker} first spread row={first_spread_row}")
 
 
+def normalise_booleans(wb):
+    """LibreOffice's round-trip rewrites boolean cells as =TRUE()/=FALSE()
+    formulas. They evaluate correctly, but these are cells the user edits, and a
+    formula in a yellow input cell is a trap. Put the literals back."""
+    n = 0
+    for ws in wb:
+        for row in ws.iter_rows():
+            for c in row:
+                if isinstance(c.value, str):
+                    v = c.value.strip().upper()
+                    if v in ("=TRUE()", "=FALSE()"):
+                        c.value = (v == "=TRUE()")
+                        n += 1
+    return n
+
+
 def phase2(out):
     wb = load_workbook(out)
+    n = normalise_booleans(wb)
+    print(f"phase2: {n} boolean cells restored to literals")
     wb_feed.inject_formulas(wb["Feed"])
     wb.calculation.fullCalcOnLoad = True
     wb.save(out)
