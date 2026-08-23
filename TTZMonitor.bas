@@ -231,6 +231,9 @@ Private gLastCapture    As Double
 Private gLastConfig     As Double
 Private gLastPaint      As Double
 Private gLastFlush      As Double
+Private gCaptureCount   As Long          ' captures since the last watchdog
+Private gMeasuredHz     As Double        ' measured captures per second
+Private gLastRateCalc   As Double
 Private gFlushRows(1 To MAX_SPREADS) As Long
 
 '==============================================================================
@@ -250,6 +253,9 @@ Public Sub StartMonitor()
     ApplyFormats
     gRunning = True
     gLastCapture = TNow()
+    gLastRateCalc = TNow()
+    gCaptureCount = 0
+    gMeasuredHz = 0
     gLastConfig = TNow()
     gLastFlush = TNow()
     gLastPaint = 0
@@ -375,6 +381,17 @@ Public Sub WatchdogTick()
         LogEvent "", "TIMER RE-ARMED", "", "capture timer had stopped"
     End If
 
+    ' Measure what the capture timer is ACTUALLY doing, rather than assume it
+    ' matches CAPTURE_MS. This is the number that shows whether the
+    ' high-resolution timer is running or the OnTime fallback took over.
+    If gLastRateCalc > 0 Then
+        Dim secs As Double
+        secs = (TNow() - gLastRateCalc) * 86400#
+        If secs > 0.2 Then gMeasuredHz = gCaptureCount / secs
+    End If
+    gLastRateCalc = TNow()
+    gCaptureCount = 0
+
     W Dash, "L3", Format$(Now, "hh:mm:ss")
     W Dash, "H23", RateSummary()
 
@@ -391,7 +408,9 @@ End Sub
 Private Function RateSummary() As String
     Dim st As Long
     st = CfgL("STORE_MIN_INTERVAL_MS", 0)
-    RateSummary = "capture " & CfgL("CAPTURE_MS", 100) & "ms  |  store " & _
+    RateSummary = "capture " & CfgL("CAPTURE_MS", 100) & "ms (" & _
+                  Format$(gMeasuredHz, "0.0") & "/s measured, " & _
+                  IIf(gHiRes, "hi-res", "OnTime fallback") & ")  |  store " & _
                   IIf(st <= 0, "full fidelity", st & "ms") & "  |  paint " & _
                   CfgL("PRICE_REFRESH_MS", 500) & "ms  |  stats " & _
                   CfgD("STATS_REFRESH_MIN", 5) & "min"
@@ -405,6 +424,7 @@ End Function
 Private Sub Tick()
     Dim t As Double, su As Boolean
     Dim vLeg As Variant, vDer As Variant, vInst As Variant, fs As Worksheet
+    Dim d0 As Worksheet
 
     If Not gRunning Then Exit Sub
     If gInCapture Then Exit Sub                  ' no re-entry
@@ -416,6 +436,7 @@ Private Sub Tick()
 
     t = TNow()
     gLastCapture = t
+    gCaptureCount = gCaptureCount + 1
 
     If (t - gLastConfig) * 86400000# >= CfgL("CONFIG_REFRESH_MS", 1000) Then
         LoadConfig
@@ -424,6 +445,7 @@ Private Sub Tick()
     End If
 
     Set fs = Sheets(SH_FEED)
+    Set d0 = Sheets(SH_DASH)
     vLeg = fs.Range(fs.Cells(F_LEG_TOP, 4), fs.Cells(F_LEG_TOP + 2 * MAX_SPREADS - 1, 6)).Value2
     vDer = fs.Range(fs.Cells(F_DER_TOP, 1), fs.Cells(F_DER_TOP + F_DER_N - 1, 6)).Value2
 
@@ -442,6 +464,10 @@ Private Sub Tick()
         Application.ScreenUpdating = False
         PaintPrices vInst, vDer
         PaintMonitor
+        ' The clock rides the paint cadence, so it ticks once a second. It used
+        ' to be written only by the watchdog, which made it a watchdog
+        ' heartbeat rather than proof the capture timer was alive.
+        W d0, "L3", Format$(Now, "hh:mm:ss")
         Application.ScreenUpdating = su
         gLastPaint = t
     End If
