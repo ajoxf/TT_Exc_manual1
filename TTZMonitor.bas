@@ -1261,6 +1261,38 @@ Private Sub Speak(ByVal what As String)
     Err.Clear
 End Sub
 
+' Alt+F8 > TestChime. Plays the entry tone, then the ceiling tone, so the
+' sound path can be checked without waiting for warm-up and a real crossing.
+' Alerts are silent during warm-up by design, which would otherwise make this
+' the last thing verified rather than the first.
+Public Sub TestChime()
+    Dim p1 As String, p2 As String
+    LoadConfig
+    p1 = CfgS("ALERT_SOUND_PATH", "C:\Windows\Media\chimes.wav")
+    p2 = CfgS("ALERT_SOUND_PATH_CEILING", "C:\Windows\Media\notify.wav")
+
+    If Len(Dir(p1)) = 0 Then
+        MsgBox "ALERT_SOUND_PATH not found on disk:" & vbCrLf & p1 & vbCrLf & vbCrLf & _
+               "Fix the path on Config, or clear the cell to fall back to Beep.", _
+               vbExclamation, "TT Z-Monitor"
+        Exit Sub
+    End If
+
+    Ting p1
+    MsgBox "That was the ENTRY chime." & vbCrLf & p1 & vbCrLf & vbCrLf & _
+           "Click OK to hear the MAX_ENTRY_Z ceiling tone - the one that means " & _
+           "stand down, not get in.", vbInformation, "TT Z-Monitor"
+
+    If Len(Dir(p2)) = 0 Then
+        MsgBox "ALERT_SOUND_PATH_CEILING not found on disk:" & vbCrLf & p2, _
+               vbExclamation, "TT Z-Monitor"
+        Exit Sub
+    End If
+    Ting p2
+    MsgBox "That was the CEILING tone. The two must be distinguishable by ear - " & _
+           "if they are not, change one on Config.", vbInformation, "TT Z-Monitor"
+End Sub
+
 '==============================================================================
 ' TICK ARCHIVE  -  every CHANGED quote, to CSV.  This is the record that lets
 ' you verify, on your own data, that coarser storage loses nothing real.
