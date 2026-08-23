@@ -1055,6 +1055,18 @@ Private Sub PaintMonitor()
     PaintDetail
 End Sub
 
+' The compact status shown in the Window column: whichever of stale feed,
+' warm-up gate, or sample count and feed rate the operator most needs.
+Private Function WindowText(ByVal i As Long) As String
+    If S(i).FeedStatus = "STALE" Then
+        WindowText = "STALE FEED"
+    ElseIf S(i).Gate <> "ready" Then
+        WindowText = S(i).Gate
+    Else
+        WindowText = S(i).Count & " samples / " & Format$(S(i).Qpm, "0") & " q-min"
+    End If
+End Function
+
 Private Sub PaintDetail()
     Dim d As Worksheet, i As Long, c As String
     Dim lots As Double, refreshMin As Double, ageMin As Double, t As Double
