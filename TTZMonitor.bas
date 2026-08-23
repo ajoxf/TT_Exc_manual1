@@ -1589,6 +1589,20 @@ Public Sub ApplyFormats()
         d.Cells(r, 19).NumberFormat = "0.00"                         ' TP in sigma
     Next k
 
+    ' The clock must stay TEXT. VBA writes Format$(Now, "hh:mm:ss"), and against
+    ' a General-formatted cell Excel silently coerces that string into a time
+    ' VALUE. The cell then holds a serial number while W() keeps comparing it
+    ' with a string, the comparison can never match, and L3 is rewritten on
+    ' every single paint - defeating the compare-first rule on the one cell
+    ' that updates most often. The original =TEXT(NOW(),...) produced text, so
+    ' text is also what preserves its appearance.
+    With d.Range("L3")
+        If .NumberFormat <> "@" Then
+            .ClearContents
+            .NumberFormat = "@"
+        End If
+    End With
+
     Set det = Sheets(SH_DET)
     If Not det Is Nothing Then
         For i = 1 To MAX_SPREADS
