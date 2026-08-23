@@ -9,7 +9,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from openpyxl import Workbook, load_workbook
-import wb_common, wb_config, wb_dashboard, wb_feed, wb_other
+import wb_common, wb_config, wb_dashboard, wb_detail, wb_feed, wb_other
 
 
 PARAM_NAMES = {n for grp in (wb_config.ENGINE, wb_config.WINDOW, wb_config.SIGNAL,
@@ -35,6 +35,7 @@ def phase1(out):
     wb.remove(wb.active)
 
     wb_dashboard.build(wb)
+    wb_detail.build(wb)
     cfg, tbl_marker, first_spread_row = wb_config.build(wb)
     wb_feed.build(wb)
     wb_other.build_buffer(wb)

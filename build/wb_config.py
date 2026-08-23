@@ -29,14 +29,17 @@ WINDOW = [
 ]
 
 SIGNAL = [
-    ("ENTRY_Z",                 2.5,   2.5,  "z",     "Highlight and chime at or above this |z|."),
+    ("ENTRY_Z",                 2.5,   2.5,  "z",     "Highlight and chime at or above this |z|. 2.0 and 2.5 are both reasonable; 2.0 fires more often and needs a larger sigma to stay worth trading."),
     ("MAX_ENTRY_Z",             4.5,   4.5,  "z",     "Entry CEILING. At or above this, do NOT highlight - that is a momentum spike, not a reversion setup. Keep the band at least 1 sigma wide."),
     ("THIN_FEED_QPM",             6,     6,  "q/min", "Feed rate at or below which the quotes/min display turns amber."),
 ]
 
 COSTS = [
     ("LOTS",                      1,     1,  "lots",  "Contracts per leg, for the cost and take-profit maths."),
-    ("TARGET_NET_USD",          150,   150,  "USD",   "Desired profit AFTER all costs. Drives the take-profit level."),
+    ("TP_MODE",     "PCT_NOTIONAL", "PCT_NOTIONAL", "text", "PCT_NOTIONAL: Take Profit = Entry + Costs + (WIN_PCT x Notional). TARGET_USD: the older rule, Take Profit = Entry + Costs + TARGET_NET_USD."),
+    ("WIN_PCT",                0.01,  0.01,  "fraction", "Percentage win, as a FRACTION - 0.01 is 1%, 0.02 is 2%. Used only when TP_MODE = PCT_NOTIONAL."),
+    ("NOTIONAL_BASIS", "SPREAD_VALUE", "SPREAD_VALUE", "text", "What WIN_PCT is taken OF. SPREAD_VALUE = |spread| x USD/pt x LOTS. ONE_LEG = the crude leg's full contract value. BOTH_LEGS = both legs' contract value added. These differ by roughly 10x - read the note below the table before changing it."),
+    ("TARGET_NET_USD",          150,   150,  "USD",   "Desired profit AFTER all costs. Used only when TP_MODE = TARGET_USD."),
     ("EDGE_MULTIPLE",           1.5,   1.5,  "x",     "Expected capture must clear the round trip by this multiple."),
     ("RATE_ORIENT_PER_SIDE",   0.35,  0.35,  "USD",   "Orient clearing + execution, per contract per side. Source: Orient rate card 2026-08-21, Ver.26.8.17."),
     ("RATE_FIX_PER_SIDE",      0.06,  0.06,  "USD",   "FIX / platform transaction fee, per contract per side. Same rate card."),
@@ -49,7 +52,7 @@ ALERTS = [
     ("ALERT_SOUND_PATH_CEILING", r"C:\Windows\Media\notify.wav", r"C:\Windows\Media\notify.wav", "path", "Distinct tone for crossing MAX_ENTRY_Z. That is 'stand down', not 'get in'."),
     ("ALERT_REARM_MARGIN",     0.25,  0.25,  "z",     "Hysteresis. Do not re-arm until |z| falls back below ENTRY_Z - this margin."),
     ("ALERT_COOLDOWN_SEC",       60,    60,  "s",     "Minimum seconds between alerts for the same spread."),
-    ("ALERT_ONLY_IF_EDGE_PASSES", True, True, "bool", "TRUE = stay silent when the edge filter fails. A sound for a trade you should not take trains you to ignore the sound."),
+    ("ALERT_ONLY_IF_EDGE_PASSES", False, False, "bool", "FALSE = the chime follows ENTRY_Z alone. TRUE = also stay silent when the edge filter fails, on the argument that a sound for a trade you should not take trains you to ignore the sound. Ships FALSE by request; the edge verdict is still shown on Detail."),
     ("ALERT_SPEAK",           False, False,  "bool",  "TRUE also speaks the spread name (Application.Speech). Useful when watching four at once."),
 ]
 
@@ -214,4 +217,14 @@ def build(wb):
     r += 1
     note(ws, f"A{r}", "USD per 1.00 of spread: NYMEX energy contracts are 1,000 bbl, so one cent of differential is "
                       "$10 per leg per lot, i.e. $1,000 per 1.00.")
+    r += 2
+    note(ws, f"A{r}", "NOTIONAL_BASIS - read this before changing it:", color=C_WARN, bold=True)
+    r += 1
+    note(ws, f"A{r}", "A spread is not an outright, so 'notional' has no single meaning. At 1 lot with CL near $60 and "
+                      "BZ-CL near $7.20:  SPREAD_VALUE ~ $7,200, ONE_LEG ~ $60,000, BOTH_LEGS ~ $127,000.")
+    r += 1
+    note(ws, f"A{r}", "1% of those is $72, $600 and $1,270. If sigma on this spread turns out to be ~5 cents ($50), "
+                      "only the first is reachable - the others need the spread to travel 12 or 25 sigma, which it will "
+                      "not do. Watch the TP-in-sigma cell on the Dashboard: above about 1 sigma it turns amber.",
+         color=C_WARN)
     return ws, tbl_marker, first_spread_row

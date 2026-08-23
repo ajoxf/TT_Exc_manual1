@@ -62,6 +62,7 @@ Private Const SND_NODEFAULT As Long = &H2
 
 '------------------------------------------------------------------ sheets ---
 Private Const SH_DASH As String = "Dashboard"
+Private Const SH_DET  As String = "Detail"
 Private Const SH_CFG  As String = "Config"
 Private Const SH_FEED As String = "Feed"
 Private Const SH_BUF  As String = "Buffer"
@@ -80,29 +81,39 @@ Private Const I_HO As Long = 2
 Private Const I_CL As Long = 3
 Private Const I_BZ As Long = 4
 
-'---------------------------------------------- Dashboard z-block row map ----
-Private Const R_NAME As Long = 27:   Private Const R_DEF As Long = 28
-Private Const R_MODE As Long = 29:   Private Const R_BETA As Long = 30
-Private Const R_USDPT As Long = 31
-Private Const R_BID As Long = 33:    Private Const R_ASK As Long = 34
-Private Const R_MID As Long = 35:    Private Const R_WIDTH As Long = 36
-Private Const R_SAMP As Long = 38:   Private Const R_ELAP As Long = 39
-Private Const R_GATE As Long = 40:   Private Const R_RATE As Long = 41
-Private Const R_FSTAT As Long = 42
-Private Const R_MEAN As Long = 44:   Private Const R_SIG As Long = 45
-Private Const R_SIGUSD As Long = 46: Private Const R_AGE As Long = 47
-Private Const R_Z As Long = 48:      Private Const R_SIGNAL As Long = 49
-Private Const R_DIR As Long = 51:    Private Const R_ENTRY As Long = 52
-Private Const R_COMM As Long = 53:   Private Const R_XLEG As Long = 54
-Private Const R_XLST As Long = 55:   Private Const R_TOT As Long = 56
-Private Const R_BE As Long = 58:     Private Const R_TP As Long = 59
-Private Const R_TPD As Long = 60:    Private Const R_TPS As Long = 61
-Private Const R_TZ As Long = 62:     Private Const R_BEYOND As Long = 63
-Private Const R_CAP As Long = 65:    Private Const R_REQ As Long = 66
-Private Const R_VERD As Long = 67:   Private Const R_MINSIG As Long = 68
+'--------------------------------------------------- Detail row map ----------
+Private Const R_NAME As Long = 21:   Private Const R_DEF As Long = 22
+Private Const R_MODE As Long = 23:   Private Const R_BETA As Long = 24
+Private Const R_USDPT As Long = 25
+Private Const R_BID As Long = 27:    Private Const R_ASK As Long = 28
+Private Const R_MID As Long = 29:    Private Const R_WIDTH As Long = 30
+Private Const R_SAMP As Long = 32:   Private Const R_ELAP As Long = 33
+Private Const R_GATE As Long = 34:   Private Const R_RATE As Long = 35
+Private Const R_FSTAT As Long = 36
+Private Const R_MEAN As Long = 38:   Private Const R_SIG As Long = 39
+Private Const R_SIGUSD As Long = 40: Private Const R_AGE As Long = 41
+Private Const R_Z As Long = 42:      Private Const R_SIGNAL As Long = 43
+Private Const R_DIR As Long = 45:    Private Const R_ENTRY As Long = 46
+Private Const R_COMM As Long = 47:   Private Const R_XLEG As Long = 48
+Private Const R_XLST As Long = 49:   Private Const R_TOT As Long = 50
+Private Const R_TPRULE As Long = 52: Private Const R_NOTIONAL As Long = 53
+Private Const R_WINUSD As Long = 54: Private Const R_COSTU As Long = 55
+Private Const R_WINU As Long = 56:   Private Const R_BE As Long = 57
+Private Const R_TP As Long = 58:     Private Const R_TPD As Long = 59
+Private Const R_TPS As Long = 60:    Private Const R_TZ As Long = 61
+Private Const R_BEYOND As Long = 62
+Private Const R_CAP As Long = 64:    Private Const R_REQ As Long = 65
+Private Const R_VERD As Long = 66:   Private Const R_MINSIG As Long = 67
+
+'-------------------------------------------------- Dashboard row map --------
+' Three blocks. For each: the first leg row, how many legs, and the slot it
+' shows. The spread row is topRow + nLegs; the statistics and trade panels
+' occupy topRow .. topRow+3 in columns G/H and J/K.
+Private Const D_TOP1 As Long = 8:    Private Const D_TOP2 As Long = 15
+Private Const D_TOP3 As Long = 22
 
 Private Const MAX_SPREADS As Long = 4
-Private Const SLOT_COL As String = "DEFG"
+Private Const SLOT_COL As String = "DEFG"      ' Detail column per slot
 Private Const CHG_RING As Long = 2048     ' quote-change times, for the feed rate
 
 '------------------------------------------------------------------- state ---
@@ -152,6 +163,8 @@ Private Type SpreadState
     CurBid           As Double
     CurAsk           As Double
     CurMid           As Double
+    LegAMid          As Double
+    LegBMid          As Double
     HaveTouch        As Boolean
     Z                As Double
     HaveZ            As Boolean
@@ -173,6 +186,11 @@ Private Type SpreadState
     TPSig            As Double
     TargetZ          As Double
     Beyond           As String
+    TpRule           As String
+    Notional         As Double
+    WinUsd           As Double
+    CostUnits        As Double
+    WinUnits         As Double
     Capture          As Double
     Required         As Double
     Verdict          As String
@@ -458,6 +476,8 @@ Private Sub CaptureSlot(ByVal i As Long, vLeg As Variant, ByVal t As Double)
     ' spread = LegB - HEDGE_RATIO x LegA.  Nothing else: no carry, no swap, no
     ' fair-value term.  Brent/WTI is a RELATED pair, not a basis pair.
     mid = Nz(bM) - S(i).Hedge * Nz(aM)
+    S(i).LegAMid = Nz(aM)
+    S(i).LegBMid = Nz(bM)
 
     ' DEDUPE, keyed on BOTH legs' bid AND ask.
     qid = QKey(aB) & "|" & QKey(aA) & "|" & QKey(bB) & "|" & QKey(bA)
@@ -619,6 +639,8 @@ Private Sub EvalSlot(ByVal i As Long, vDer As Variant, ByVal t As Double)
     ' ---- direction, break-even, take-profit, edge filter -----------------
     If Not S(i).HaveTrade Or Not S(i).HaveTouch Then
         S(i).DirTxt = "-": S(i).Beyond = "-": S(i).Verdict = "n/a"
+        S(i).TpRule = "-": S(i).Notional = 0: S(i).WinUsd = 0
+        S(i).CostUnits = 0: S(i).WinUnits = 0
         Exit Sub
     End If
 
@@ -628,8 +650,25 @@ Private Sub EvalSlot(ByVal i As Long, vDer As Variant, ByVal t As Double)
         dirSign = 1: S(i).DirTxt = "LONG the spread": S(i).Entry = S(i).CurAsk
     End If
 
-    S(i).TPDist = (targetUsd + S(i).Total) / (S(i).UsdPerPoint * lots)
-    S(i).BE = S(i).Entry + dirSign * S(i).Total / (S(i).UsdPerPoint * lots)
+    ' TAKE PROFIT = Entry + Costs + (WIN_PCT x Notional), signed by direction.
+    ' A spread is not an outright, so "notional" has no single meaning - what
+    ' the percentage is taken OF is a Config choice, and the three answers
+    ' differ by roughly 10x. TP in sigma is the reachability check.
+    S(i).CostUnits = S(i).Total / (S(i).UsdPerPoint * lots)
+    S(i).Notional = NotionalUsd(i, lots)
+
+    If UCase$(CfgS("TP_MODE", "PCT_NOTIONAL")) = "TARGET_USD" Then
+        S(i).WinUsd = targetUsd
+        S(i).TpRule = "Entry + Costs + TARGET_NET_USD"
+    Else
+        S(i).WinUsd = CfgD("WIN_PCT", 0.01) * S(i).Notional
+        S(i).TpRule = "Entry + Costs + " & Format$(CfgD("WIN_PCT", 0.01) * 100, "0.##") & _
+                      "% x " & UCase$(CfgS("NOTIONAL_BASIS", "SPREAD_VALUE"))
+    End If
+    S(i).WinUnits = S(i).WinUsd / (S(i).UsdPerPoint * lots)
+
+    S(i).TPDist = S(i).CostUnits + S(i).WinUnits
+    S(i).BE = S(i).Entry + dirSign * S(i).CostUnits
     S(i).TP = S(i).Entry + dirSign * S(i).TPDist
     S(i).TPSig = S(i).TPDist / S(i).Sigma
     S(i).TargetZ = (S(i).TP - S(i).Mean) / S(i).Sigma
@@ -647,6 +686,29 @@ Private Sub EvalSlot(ByVal i As Long, vDer As Variant, ByVal t As Double)
     S(i).Verdict = IIf(S(i).Capture >= S(i).Required, "PASS", "FAIL")
     S(i).MinSigPass = S(i).Required / (0.5 * Abs(S(i).Z) * S(i).UsdPerPoint * lots)
 End Sub
+
+' What WIN_PCT is taken OF. The three answers are not close to each other:
+' at 1 lot with CL near $60 and BZ-CL near $7.20 they are roughly $7,200,
+' $60,000 and $127,000.
+Private Function NotionalUsd(ByVal i As Long, ByVal lots As Double) As Double
+    Dim basis As String, legA As Double, legB As Double
+    basis = UCase$(CfgS("NOTIONAL_BASIS", "SPREAD_VALUE"))
+    legA = Abs(S(i).LegAMid): legB = Abs(S(i).LegBMid)
+
+    Select Case basis
+        Case "ONE_LEG"
+            ' The crude leg carries the contract value the spread is quoted against.
+            If legA > 0 Then
+                NotionalUsd = legA * S(i).UsdPerPoint * lots
+            Else
+                NotionalUsd = legB * S(i).UsdPerPoint * lots
+            End If
+        Case "BOTH_LEGS"
+            NotionalUsd = (legA + legB) * S(i).UsdPerPoint * lots
+        Case Else                        ' SPREAD_VALUE
+            NotionalUsd = Abs(S(i).CurMid) * S(i).UsdPerPoint * lots
+    End Select
+End Function
 
 '==============================================================================
 ' CIRCULAR BUFFER
@@ -791,12 +853,48 @@ End Sub
 ' PAINT  -  every write goes through W(), which compares before it writes
 '==============================================================================
 Private Sub PaintPrices(vInst As Variant, vDer As Variant)
+    ' ---- the MAIN Dashboard: three blocks, legs then the spread ----------
+    Dim d As Worksheet, b As Long, top As Long, sr As Long, k As Long
+    Dim legs As Variant, slot As Long
+    Set d = Sheets(SH_DASH)
+
+    For b = 1 To 3
+        Select Case b
+            Case 1: top = D_TOP1: slot = 1: legs = Array(I_BZ, I_CL)
+            Case 2: top = D_TOP2: slot = 2: legs = Array(I_HO, I_CL)
+            Case 3: top = D_TOP3: slot = 3: legs = Array(I_RB, I_HO, I_CL)
+        End Select
+
+        ' each leg: Bid, Ask, Bid-Ask Gap, straight off the feed
+        For k = LBound(legs) To UBound(legs)
+            W d, "C" & (top + k), vInst(legs(k), 3)
+            W d, "D" & (top + k), vInst(legs(k), 4)
+            W d, "E" & (top + k), vInst(legs(k), 8)
+        Next k
+
+        ' the spread row: taken from the slot itself, so the number shown is
+        ' the same one the z-score is measured against.
+        sr = top + UBound(legs) - LBound(legs) + 1
+        If S(slot).HaveTouch Then
+            W d, "C" & sr, S(slot).CurBid
+            W d, "D" & sr, S(slot).CurAsk
+            W d, "E" & sr, S(slot).CurAsk - S(slot).CurBid
+        Else
+            W d, "C" & sr, "": W d, "D" & sr, "": W d, "E" & sr, ""
+        End If
+    Next b
+
+    PaintDetailPrices vInst, vDer
+End Sub
+
+Private Sub PaintDetailPrices(vInst As Variant, vDer As Variant)
     Dim d As Worksheet, r As Long, k As Long
     Dim legRow As Variant, usdpt As Variant, lots As Double
-    Set d = Sheets(SH_DASH)
+    On Error Resume Next
+    Set d = Sheets(SH_DET)
+    If d Is Nothing Then Exit Sub
     lots = CfgD("LOTS", 1)
 
-    ' outright legs -> Dashboard rows 6..9  (B6..B9 hold the TT short names)
     legRow = Array(I_RB, I_HO, I_CL, I_BZ)
     For k = 0 To 3
         r = 6 + k
@@ -809,47 +907,74 @@ Private Sub PaintPrices(vInst As Variant, vDer As Variant)
         W d, "M" & r, vInst(legRow(k), 8)
     Next k
 
-    ' 3:2:1 crack build -> rows 12 (RB) 13 (HO) 14 (CL), 15 = the crack
-    legRow = Array(I_RB, I_HO, I_CL)
-    For k = 0 To 2
-        r = 12 + k
-        W d, "C" & r, TxtOf(vInst(legRow(k), 2))
-        W d, "H" & r, vInst(legRow(k), 3)
-        W d, "I" & r, vInst(legRow(k), 4)
-        W d, "J" & r, vInst(legRow(k), 5)
-        W d, "K" & r, vInst(legRow(k), 6)
-        W d, "L" & r, vInst(legRow(k), 7)
-    Next k
-    W d, "H15", vDer(3, 3)      ' bid: products at the bid, crude at the ASK (I14)
-    W d, "I15", vDer(3, 4)      ' ask: mirrors it - crude at the BID (H14)
-    W d, "L15", vDer(3, 5)
-
-    ' Brent / WTI reference pair -> P7 (BZ mid), P8 (CL mid), P9 = P7-P8
-    W d, "P7", vInst(I_BZ, 7): W d, "Q7", vInst(I_BZ, 8)
-    W d, "P8", vInst(I_CL, 7): W d, "Q8", vInst(I_CL, 8)
-    W d, "P9", vDer(1, 5)
-
-    ' derived + listed spreads -> rows 19..23.  USD per 1.00 of spread is 1,000
-    ' per lot, except the 3:2:1 pack, which is three crude-equivalents: 3,000.
+    ' USD per 1.00 of spread is 1,000 per lot, except the 3:2:1 pack, which is
+    ' three crude-equivalents: 3,000.
     usdpt = Array(1000#, 1000#, 3000#, 1000#, 1000#)
     For k = 1 To F_DER_N
-        r = 18 + k
+        r = 12 + k
         W d, "H" & r, vDer(k, 3)
         W d, "I" & r, vDer(k, 4)
         W d, "L" & r, vDer(k, 5)
         W d, "M" & r, vDer(k, 6)
-        If IsNum(vDer(k, 6)) Then
-            W d, "N" & r, Nz(vDer(k, 6)) * usdpt(k - 1) * lots
-        Else
-            W d, "N" & r, ""
-        End If
     Next k
+    Err.Clear
 End Sub
 
 Private Sub PaintMonitor()
+    ' ---- Dashboard statistics + trade panels -----------------------------
+    Dim d As Worksheet, b As Long, top As Long, slot As Long
+    Set d = Sheets(SH_DASH)
+
+    For b = 1 To 3
+        Select Case b
+            Case 1: top = D_TOP1: slot = 1
+            Case 2: top = D_TOP2: slot = 2
+            Case 3: top = D_TOP3: slot = 3
+        End Select
+
+        ' Live Z-score, Mean, Std Dev - blank whenever the window is not usable.
+        ' A blank is honest; a number would not be.
+        If S(slot).HaveTrade Then W d, "H" & top, S(slot).Z Else W d, "H" & top, ""
+        If S(slot).StatsValid Then
+            W d, "H" & (top + 1), S(slot).Mean
+            W d, "H" & (top + 2), S(slot).Sigma
+        Else
+            W d, "H" & (top + 1), "": W d, "H" & (top + 2), ""
+        End If
+        W d, "H" & (top + 3), WindowText(slot)
+
+        W d, "J" & top, "Signal"
+        W d, "K" & top, S(slot).Signal
+        If S(slot).HaveTrade And S(slot).HaveTouch Then
+            W d, "K" & (top + 1), S(slot).Entry
+            W d, "K" & (top + 2), S(slot).TP
+            W d, "K" & (top + 3), S(slot).TPSig
+            W d, "J" & (top + 1), "Entry (" & LCase$(Left$(S(slot).DirTxt, 5)) & ")"
+        Else
+            W d, "K" & (top + 1), "": W d, "K" & (top + 2), "": W d, "K" & (top + 3), ""
+            W d, "J" & (top + 1), "Entry (touch)"
+        End If
+    Next b
+
+    PaintDetail
+End Sub
+
+Private Function WindowText(ByVal i As Long) As String
+    If S(i).FeedStatus = "STALE" Then
+        WindowText = "STALE FEED"
+    ElseIf S(i).Gate <> "ready" Then
+        WindowText = S(i).Gate
+    Else
+        WindowText = S(i).Count & " samples / " & Format$(S(i).Qpm, "0") & " q-min"
+    End If
+End Function
+
+Private Sub PaintDetail()
     Dim d As Worksheet, i As Long, c As String
     Dim lots As Double, refreshMin As Double, ageMin As Double, t As Double
-    Set d = Sheets(SH_DASH)
+    On Error Resume Next
+    Set d = Sheets(SH_DET)
+    If d Is Nothing Then Exit Sub
     lots = CfgD("LOTS", 1)
     refreshMin = CfgD("STATS_REFRESH_MIN", 5)
     t = TNow()
@@ -907,6 +1032,11 @@ Private Sub PaintMonitor()
         If S(i).HaveTrade And S(i).HaveTouch Then
             W d, c & R_DIR, S(i).DirTxt
             W d, c & R_ENTRY, S(i).Entry
+            W d, c & R_TPRULE, S(i).TpRule
+            W d, c & R_NOTIONAL, S(i).Notional
+            W d, c & R_WINUSD, S(i).WinUsd
+            W d, c & R_COSTU, S(i).CostUnits
+            W d, c & R_WINU, S(i).WinUnits
             W d, c & R_BE, S(i).BE
             W d, c & R_TP, S(i).TP
             W d, c & R_TPD, S(i).TPDist
@@ -919,6 +1049,8 @@ Private Sub PaintMonitor()
             W d, c & R_MINSIG, S(i).MinSigPass
         Else
             W d, c & R_DIR, "-": W d, c & R_ENTRY, ""
+            W d, c & R_TPRULE, "-": W d, c & R_NOTIONAL, "": W d, c & R_WINUSD, ""
+            W d, c & R_COSTU, "": W d, c & R_WINU, ""
             W d, c & R_BE, "": W d, c & R_TP, "": W d, c & R_TPD, ""
             W d, c & R_TPS, "": W d, c & R_TZ, "": W d, c & R_BEYOND, "-"
             W d, c & R_CAP, "": W d, c & R_REQ, "": W d, c & R_VERD, "n/a"
@@ -926,14 +1058,16 @@ Private Sub PaintMonitor()
         End If
 NextSlot:
     Next i
+    Err.Clear
 End Sub
 
 Private Sub BlankSlot(d As Worksheet, ByVal c As String)
     Dim r As Variant, k As Long
     r = Array(R_NAME, R_DEF, R_MODE, R_BETA, R_USDPT, R_BID, R_ASK, R_MID, R_WIDTH, _
               R_SAMP, R_ELAP, R_GATE, R_RATE, R_FSTAT, R_MEAN, R_SIG, R_SIGUSD, R_AGE, _
-              R_Z, R_DIR, R_ENTRY, R_COMM, R_XLEG, R_XLST, R_TOT, R_BE, R_TP, R_TPD, _
-              R_TPS, R_TZ, R_BEYOND, R_CAP, R_REQ, R_VERD, R_MINSIG)
+              R_Z, R_DIR, R_ENTRY, R_COMM, R_XLEG, R_XLST, R_TOT, R_TPRULE, R_NOTIONAL, _
+              R_WINUSD, R_COSTU, R_WINU, R_BE, R_TP, R_TPD, R_TPS, R_TZ, R_BEYOND, _
+              R_CAP, R_REQ, R_VERD, R_MINSIG)
     For k = LBound(r) To UBound(r)
         W d, c & r(k), ""
     Next k
@@ -1281,16 +1415,40 @@ End Function
 ' digits than the market moves in will appear to change constantly.
 '==============================================================================
 Public Sub ApplyFormats()
-    Dim d As Worksheet, i As Long, c As String, fmt As String
+    Dim d As Worksheet, det As Worksheet, i As Long, c As String, fmt As String
+    Dim b As Long, top As Long, slot As Long, nLegs As Long
+    On Error Resume Next
     Set d = Sheets(SH_DASH)
-    For i = 1 To MAX_SPREADS
-        c = Mid$(SLOT_COL, i, 1)
-        fmt = PriceFmt(S(i).Decimals)
-        d.Range(c & R_BID & "," & c & R_ASK & "," & c & R_MID & "," & c & R_WIDTH & "," & _
-                c & R_MEAN & "," & c & R_SIG & "," & c & R_ENTRY & "," & c & R_BE & "," & _
-                c & R_TP & "," & c & R_TPD & "," & c & R_MINSIG).NumberFormat = fmt
-    Next i
-    d.Range("H6:M9,H12:L15,H19:M23,P7:Q9").NumberFormat = "#,##0.0000"
+
+    ' Dashboard: prices at the slot's own tick precision.
+    For b = 1 To 3
+        Select Case b
+            Case 1: top = D_TOP1: slot = 1: nLegs = 2
+            Case 2: top = D_TOP2: slot = 2: nLegs = 2
+            Case 3: top = D_TOP3: slot = 3: nLegs = 3
+        End Select
+        fmt = PriceFmt(S(slot).Decimals)
+        d.Range("C" & top & ":E" & (top + nLegs)).NumberFormat = "#,##0.0000"
+        d.Range("C" & (top + nLegs) & ":E" & (top + nLegs)).NumberFormat = fmt
+        d.Range("H" & (top + 1) & ":H" & (top + 2)).NumberFormat = fmt
+        d.Range("K" & (top + 1) & ":K" & (top + 2)).NumberFormat = fmt
+        d.Range("H" & top).NumberFormat = "0.00"
+        d.Range("K" & (top + 3)).NumberFormat = "0.00"
+    Next b
+
+    Set det = Sheets(SH_DET)
+    If Not det Is Nothing Then
+        For i = 1 To MAX_SPREADS
+            c = Mid$(SLOT_COL, i, 1)
+            fmt = PriceFmt(S(i).Decimals)
+            det.Range(c & R_BID & "," & c & R_ASK & "," & c & R_MID & "," & c & R_WIDTH & "," & _
+                      c & R_MEAN & "," & c & R_SIG & "," & c & R_ENTRY & "," & c & R_BE & "," & _
+                      c & R_TP & "," & c & R_TPD & "," & c & R_COSTU & "," & c & R_WINU & "," & _
+                      c & R_MINSIG).NumberFormat = fmt
+        Next i
+        det.Range("H6:M9,H13:M17").NumberFormat = "#,##0.0000"
+    End If
+    Err.Clear
 End Sub
 
 Private Function PriceFmt(ByVal dp As Long) As String
