@@ -80,6 +80,8 @@ Private Const I_RB As Long = 1
 Private Const I_HO As Long = 2
 Private Const I_CL As Long = 3
 Private Const I_BZ As Long = 4
+Private Const I_CLBZ As Long = 5
+Private Const I_HOCL As Long = 6
 
 '--------------------------------------------------- Detail row map ----------
 Private Const R_NAME As Long = 21:   Private Const R_DEF As Long = 22
@@ -106,11 +108,18 @@ Private Const R_CAP As Long = 64:    Private Const R_REQ As Long = 65
 Private Const R_VERD As Long = 66:   Private Const R_MINSIG As Long = 67
 
 '-------------------------------------------------- Dashboard row map --------
-' Three blocks. For each: the first leg row, how many legs, and the slot it
-' shows. The spread row is topRow + nLegs; the statistics and trade panels
-' occupy topRow .. topRow+3 in columns G/H and J/K.
-Private Const D_TOP1 As Long = 8:    Private Const D_TOP2 As Long = 15
-Private Const D_TOP3 As Long = 22
+' The user's own layout, unchanged. VBA writes these cells; none is a formula.
+'   C6 RB   C7 HO   C8 BZ   C9 CL   C10 CL-BZ listed   C12 HO-CL listed
+'   F..L block  cols H bid, I ask, J gap, K high, L low
+'        rows 7 HO, 8 CL, 9 HO|CL crack   /   12 RB, 13 HO, 14 CL, 15 3:2:1
+'   N..T block  cols P bid, Q ask, R gap, S high, T low
+'        rows 7 BZ, 8 CL, 9 BZ - CL
+'   z block rows 19 HO|CL, 20 BZ-CL, 21 3:2:1
+Private Const CB_H As Long = 8            ' column H - left block bid
+Private Const CB_P As Long = 16           ' column P - right block bid
+Private Const ZR1 As Long = 19            ' HO|CL crack   -> slot 2
+Private Const ZR2 As Long = 20            ' BZ - CL       -> slot 1
+Private Const ZR3 As Long = 21            ' 3:2:1         -> slot 3
 
 Private Const MAX_SPREADS As Long = 4
 Private Const SLOT_COL As String = "DEFG"      ' Detail column per slot
@@ -248,9 +257,9 @@ Public Sub StartMonitor()
     ArmCaptureTimer
     ScheduleWatchdog
 
-    W Dash, "C3", "RUNNING"
-    W Dash, "F3", RateSummary()
-    W Dash, "F4", Format$(Date, "ddd dd mmm yyyy")
+    W Dash, "F23", "RUNNING"
+    W Dash, "H23", RateSummary()
+    
     LogEvent "", "MONITOR STARTED", "", RateSummary() & _
              "  lookback=" & CfgD("LOOKBACK_MIN", 120) & "min" & _
              "  entry_z=" & CfgD("ENTRY_Z", 2.5) & "  ceiling=" & CfgD("MAX_ENTRY_Z", 4.5) & _
@@ -268,8 +277,8 @@ Public Sub StopMonitor()
     Application.OnTime gNextWatch, "WatchdogTick", , False
     FlushBuffers
     FlushArchives True
-    W Dash, "C3", "STOPPED"
-    W Dash, "F3", "-"
+    W Dash, "F23", "STOPPED"
+    W Dash, "H23", "-"
     LogEvent "", "MONITOR STOPPED", "", ""
     Err.Clear
 End Sub
@@ -277,7 +286,7 @@ End Sub
 Public Sub Auto_Open()
     ' Deliberately does NOT auto-start: a cold start begins a fresh warm-up and
     ' the operator should decide when that clock begins.
-    W Dash, "C3", "STOPPED"
+    W Dash, "F23", "STOPPED"
     W Dash, "L3", Format$(Now, "hh:mm:ss")
 End Sub
 
@@ -367,7 +376,7 @@ Public Sub WatchdogTick()
     End If
 
     W Dash, "L3", Format$(Now, "hh:mm:ss")
-    W Dash, "F3", RateSummary()
+    W Dash, "H23", RateSummary()
 
     If (TNow() - gLastFlush) * 86400# >= CfgL("FLUSH_SEC", 60) Then
         FlushBuffers
@@ -853,39 +862,120 @@ End Sub
 ' PAINT  -  every write goes through W(), which compares before it writes
 '==============================================================================
 Private Sub PaintPrices(vInst As Variant, vDer As Variant)
-    ' ---- the MAIN Dashboard: three blocks, legs then the spread ----------
-    Dim d As Worksheet, b As Long, top As Long, sr As Long, k As Long
-    Dim legs As Variant, slot As Long
+    ' ---- the user's Dashboard, cell for cell --------------------------
+    Dim d As Worksheet
     Set d = Sheets(SH_DASH)
 
-    For b = 1 To 3
-        Select Case b
-            Case 1: top = D_TOP1: slot = 1: legs = Array(I_BZ, I_CL)
-            Case 2: top = D_TOP2: slot = 2: legs = Array(I_HO, I_CL)
-            Case 3: top = D_TOP3: slot = 3: legs = Array(I_RB, I_HO, I_CL)
-        End Select
+    W d, "C6", TxtOf(vInst(I_RB, 2))
+    W d, "C7", TxtOf(vInst(I_HO, 2))
+    W d, "C8", TxtOf(vInst(I_BZ, 2))
+    W d, "C9", TxtOf(vInst(I_CL, 2))
+    W d, "C10", TxtOf(vInst(I_CLBZ, 2))
+    W d, "C12", TxtOf(vInst(I_HOCL, 2))
 
-        ' each leg: Bid, Ask, Bid-Ask Gap, straight off the feed
-        For k = LBound(legs) To UBound(legs)
-            W d, "C" & (top + k), vInst(legs(k), 3)
-            W d, "D" & (top + k), vInst(legs(k), 4)
-            W d, "E" & (top + k), vInst(legs(k), 8)
-        Next k
+    ' left block: HO, CL, then the HO|CL crack
+    PaintLeg d, 7, CB_H, vInst, I_HO
+    PaintLeg d, 8, CB_H, vInst, I_CL
+    PaintSpreadRow d, 9, CB_H, 2, vInst, I_HO, I_CL, 42#
 
-        ' the spread row: taken from the slot itself, so the number shown is
-        ' the same one the z-score is measured against.
-        sr = top + UBound(legs) - LBound(legs) + 1
-        If S(slot).HaveTouch Then
-            W d, "C" & sr, S(slot).CurBid
-            W d, "D" & sr, S(slot).CurAsk
-            W d, "E" & sr, S(slot).CurAsk - S(slot).CurBid
-        Else
-            W d, "C" & sr, "": W d, "D" & sr, "": W d, "E" & sr, ""
-        End If
-    Next b
+    ' right block: BZ, CL, then BZ - CL
+    PaintLeg d, 7, CB_P, vInst, I_BZ
+    PaintLeg d, 8, CB_P, vInst, I_CL
+    PaintSpreadRow d, 9, CB_P, 1, vInst, I_BZ, I_CL, 1#
+
+    ' second block: RB, HO, CL, then the 3:2:1 pack
+    PaintLeg d, 12, CB_H, vInst, I_RB
+    PaintLeg d, 13, CB_H, vInst, I_HO
+    PaintLeg d, 14, CB_H, vInst, I_CL
+    Paint321 d, 15, CB_H, 3, vInst
 
     PaintDetailPrices vInst, vDer
 End Sub
+
+Private Sub PaintLeg(d As Worksheet, ByVal r As Long, ByVal c0 As Long, _
+                     vInst As Variant, ByVal idx As Long)
+    WC d, r, c0, vInst(idx, 3)                            ' Bid
+    WC d, r, c0 + 1, vInst(idx, 4)                        ' Ask
+    WC d, r, c0 + 2, Sub2(vInst(idx, 4), vInst(idx, 3))   ' Gap
+    WC d, r, c0 + 3, vInst(idx, 5)                        ' High
+    WC d, r, c0 + 4, vInst(idx, 6)                        ' Low
+End Sub
+
+' The spread row. Its Bid and Ask follow SPREAD_QUOTE_CONVENTION:
+'   CROSSING  (default) - sell LegB at the bid and buy LegA at the ask, and
+'                         mirror it for the ask. Gap is then the real cost of
+'                         crossing, and it is always positive.
+'   SAME_SIDE           - bid minus bid and ask minus ask, as the original
+'                         sheet computed rows 9. Gap is a DIFFERENCE of gaps
+'                         there, which understates the crossing cost and can
+'                         even go negative.
+Private Sub PaintSpreadRow(d As Worksheet, ByVal r As Long, ByVal c0 As Long, _
+                           ByVal slot As Long, vInst As Variant, _
+                           ByVal idxB As Long, ByVal idxA As Long, ByVal scaleB As Double)
+    Dim bid As Variant, ask As Variant
+
+    If SameSideQuotes() Then
+        bid = Comb2(vInst(idxB, 3), scaleB, vInst(idxA, 3))
+        ask = Comb2(vInst(idxB, 4), scaleB, vInst(idxA, 4))
+    ElseIf S(slot).HaveTouch Then
+        bid = S(slot).CurBid
+        ask = S(slot).CurAsk
+    Else
+        bid = "": ask = ""
+    End If
+
+    WC d, r, c0, bid
+    WC d, r, c0 + 1, ask
+    WC d, r, c0 + 2, Sub2(ask, bid)
+    WC d, r, c0 + 3, Comb2(vInst(idxB, 5), scaleB, vInst(idxA, 5))   ' High
+    WC d, r, c0 + 4, Comb2(vInst(idxB, 6), scaleB, vInst(idxA, 6))   ' Low
+End Sub
+
+' The 3:2:1 pack: (2 x RB x 42 + 1 x HO x 42 - 3 x CL) / 3
+Private Sub Paint321(d As Worksheet, ByVal r As Long, ByVal c0 As Long, _
+                     ByVal slot As Long, vInst As Variant)
+    Dim bid As Variant, ask As Variant
+
+    If SameSideQuotes() Then
+        bid = Pack321(vInst(I_RB, 3), vInst(I_HO, 3), vInst(I_CL, 3))
+        ask = Pack321(vInst(I_RB, 4), vInst(I_HO, 4), vInst(I_CL, 4))
+    ElseIf S(slot).HaveTouch Then
+        bid = S(slot).CurBid
+        ask = S(slot).CurAsk
+    Else
+        bid = "": ask = ""
+    End If
+
+    WC d, r, c0, bid
+    WC d, r, c0 + 1, ask
+    WC d, r, c0 + 2, Sub2(ask, bid)
+    WC d, r, c0 + 3, Pack321(vInst(I_RB, 5), vInst(I_HO, 5), vInst(I_CL, 5))
+    WC d, r, c0 + 4, Pack321(vInst(I_RB, 6), vInst(I_HO, 6), vInst(I_CL, 6))
+End Sub
+
+Private Function SameSideQuotes() As Boolean
+    SameSideQuotes = (UCase$(CfgS("SPREAD_QUOTE_CONVENTION", "CROSSING")) = "SAME_SIDE")
+End Function
+
+Private Function Pack321(a As Variant, b As Variant, c As Variant) As Variant
+    If IsNum(a) And IsNum(b) And IsNum(c) Then
+        Pack321 = ((Nz(a) * 2 * 42) + (Nz(b) * 1 * 42) - (Nz(c) * 3)) / 3
+    Else
+        Pack321 = ""
+    End If
+End Function
+
+Private Function Comb2(b As Variant, ByVal scaleB As Double, a As Variant) As Variant
+    If IsNum(a) And IsNum(b) Then
+        Comb2 = Nz(b) * scaleB - Nz(a)
+    Else
+        Comb2 = ""
+    End If
+End Function
+
+Private Function Sub2(x As Variant, y As Variant) As Variant
+    If IsNum(x) And IsNum(y) Then Sub2 = Nz(x) - Nz(y) Else Sub2 = ""
+End Function
 
 Private Sub PaintDetailPrices(vInst As Variant, vDer As Variant)
     Dim d As Worksheet, r As Long, k As Long
@@ -921,53 +1011,49 @@ Private Sub PaintDetailPrices(vInst As Variant, vDer As Variant)
 End Sub
 
 Private Sub PaintMonitor()
-    ' ---- Dashboard statistics + trade panels -----------------------------
-    Dim d As Worksheet, b As Long, top As Long, slot As Long
+    ' ---- the z-score block added below the user's own layout -----------
+    Dim d As Worksheet, k As Long, r As Long, slot As Long
+    Dim rows_ As Variant, slots_ As Variant
     Set d = Sheets(SH_DASH)
 
-    For b = 1 To 3
-        Select Case b
-            Case 1: top = D_TOP1: slot = 1
-            Case 2: top = D_TOP2: slot = 2
-            Case 3: top = D_TOP3: slot = 3
-        End Select
+    rows_ = Array(ZR1, ZR2, ZR3)
+    slots_ = Array(2, 1, 3)          ' display order: HO|CL, BZ-CL, 3:2:1
 
-        ' Live Z-score, Mean, Std Dev - blank whenever the window is not usable.
-        ' A blank is honest; a number would not be.
-        If S(slot).HaveTrade Then W d, "H" & top, S(slot).Z Else W d, "H" & top, ""
+    For k = 0 To 2
+        r = rows_(k): slot = slots_(k)
+
+        ' Live Z-score, Mean, Std Dev. Blank whenever the window is not
+        ' usable - a blank is honest; a number would not be.
+        If S(slot).HaveTrade Then WC d, r, 8, S(slot).Z Else WC d, r, 8, ""
         If S(slot).StatsValid Then
-            W d, "H" & (top + 1), S(slot).Mean
-            W d, "H" & (top + 2), S(slot).Sigma
+            WC d, r, 9, S(slot).Mean
+            WC d, r, 10, S(slot).Sigma
         Else
-            W d, "H" & (top + 1), "": W d, "H" & (top + 2), ""
+            WC d, r, 9, "": WC d, r, 10, ""
         End If
-        W d, "H" & (top + 3), WindowText(slot)
+        WC d, r, 11, S(slot).Signal
+        WC d, r, 12, WindowText(slot)
 
-        W d, "J" & top, "Signal"
-        W d, "K" & top, S(slot).Signal
+        ' Columns G and O are hidden in this sheet, so the block uses
+        ' F, H, I, J, K, L and N, P, Q, R, S - the same visible grid the
+        ' blocks above use.
         If S(slot).HaveTrade And S(slot).HaveTouch Then
-            W d, "K" & (top + 1), S(slot).Entry
-            W d, "K" & (top + 2), S(slot).TP
-            W d, "K" & (top + 3), S(slot).TPSig
-            W d, "J" & (top + 1), "Entry (" & LCase$(Left$(S(slot).DirTxt, 5)) & ")"
+            WC d, r, 14, S(slot).Entry
+            WC d, r, 16, S(slot).Total
+            WC d, r, 17, S(slot).WinUsd
+            WC d, r, 18, S(slot).TP
+            WC d, r, 19, S(slot).TPSig
         Else
-            W d, "K" & (top + 1), "": W d, "K" & (top + 2), "": W d, "K" & (top + 3), ""
-            W d, "J" & (top + 1), "Entry (touch)"
+            WC d, r, 14, "": WC d, r, 16, IIf(S(slot).HaveTouch, S(slot).Total, "")
+            WC d, r, 17, "": WC d, r, 18, "": WC d, r, 19, ""
         End If
-    Next b
+    Next k
+
+    W d, "F23", IIf(gRunning, "RUNNING", "STOPPED")
+    W d, "H23", RateSummary()
 
     PaintDetail
 End Sub
-
-Private Function WindowText(ByVal i As Long) As String
-    If S(i).FeedStatus = "STALE" Then
-        WindowText = "STALE FEED"
-    ElseIf S(i).Gate <> "ready" Then
-        WindowText = S(i).Gate
-    Else
-        WindowText = S(i).Count & " samples / " & Format$(S(i).Qpm, "0") & " q-min"
-    End If
-End Function
 
 Private Sub PaintDetail()
     Dim d As Worksheet, i As Long, c As String
@@ -1415,26 +1501,23 @@ End Function
 ' digits than the market moves in will appear to change constantly.
 '==============================================================================
 Public Sub ApplyFormats()
+    ' The user's own cells keep the number formats they already have - the
+    ' Dashboard's appearance is not ours to change. Only the added z-block and
+    ' the Detail sheet are formatted here.
     Dim d As Worksheet, det As Worksheet, i As Long, c As String, fmt As String
-    Dim b As Long, top As Long, slot As Long, nLegs As Long
+    Dim k As Long, r As Long, rows_ As Variant
     On Error Resume Next
     Set d = Sheets(SH_DASH)
-
-    ' Dashboard: prices at the slot's own tick precision.
-    For b = 1 To 3
-        Select Case b
-            Case 1: top = D_TOP1: slot = 1: nLegs = 2
-            Case 2: top = D_TOP2: slot = 2: nLegs = 2
-            Case 3: top = D_TOP3: slot = 3: nLegs = 3
-        End Select
-        fmt = PriceFmt(S(slot).Decimals)
-        d.Range("C" & top & ":E" & (top + nLegs)).NumberFormat = "#,##0.0000"
-        d.Range("C" & (top + nLegs) & ":E" & (top + nLegs)).NumberFormat = fmt
-        d.Range("H" & (top + 1) & ":H" & (top + 2)).NumberFormat = fmt
-        d.Range("K" & (top + 1) & ":K" & (top + 2)).NumberFormat = fmt
-        d.Range("H" & top).NumberFormat = "0.00"
-        d.Range("K" & (top + 3)).NumberFormat = "0.00"
-    Next b
+    rows_ = Array(ZR1, ZR2, ZR3)
+    For k = 0 To 2
+        r = rows_(k)
+        d.Cells(r, 8).NumberFormat = "0.00"                          ' z
+        d.Range(d.Cells(r, 9), d.Cells(r, 10)).NumberFormat = "0.0000"
+        d.Cells(r, 14).NumberFormat = "0.0000"                       ' entry
+        d.Range(d.Cells(r, 16), d.Cells(r, 17)).NumberFormat = "$#,##0.00"
+        d.Cells(r, 18).NumberFormat = "0.0000"                       ' take profit
+        d.Cells(r, 19).NumberFormat = "0.00"                         ' TP in sigma
+    Next k
 
     Set det = Sheets(SH_DET)
     If Not det Is Nothing Then
@@ -1490,6 +1573,15 @@ Private Sub W(ws As Worksheet, ByVal addr As String, ByVal v As Variant)
     ElseIf Abs(CDbl(cur) - CDbl(v)) > 0.0000000001 Then
         c.Value2 = CDbl(v)
     End If
+    Exit Sub
+Fail:
+    Err.Clear
+End Sub
+
+' Same compare-first rule as W(), addressed by row and column.
+Private Sub WC(ws As Worksheet, ByVal r As Long, ByVal c As Long, ByVal v As Variant)
+    On Error GoTo Fail
+    W ws, ws.Cells(r, c).Address(False, False), v
     Exit Sub
 Fail:
     Err.Clear

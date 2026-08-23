@@ -32,6 +32,7 @@ SIGNAL = [
     ("ENTRY_Z",                 2.5,   2.5,  "z",     "Highlight and chime at or above this |z|. 2.0 and 2.5 are both reasonable; 2.0 fires more often and needs a larger sigma to stay worth trading."),
     ("MAX_ENTRY_Z",             4.5,   4.5,  "z",     "Entry CEILING. At or above this, do NOT highlight - that is a momentum spike, not a reversion setup. Keep the band at least 1 sigma wide."),
     ("THIN_FEED_QPM",             6,     6,  "q/min", "Feed rate at or below which the quotes/min display turns amber."),
+    ("SPREAD_QUOTE_CONVENTION", "CROSSING", "CROSSING", "text", "How the spread rows on Dashboard quote Bid and Ask. CROSSING: sell LegB at the bid and buy LegA at the ask, mirrored for the ask - the Gap is then the true cost of crossing and is always positive. SAME_SIDE: bid-minus-bid and ask-minus-ask, as the original sheet's rows 9 computed. Under SAME_SIDE the Gap is a DIFFERENCE of gaps, which understates the crossing cost and can go negative."),
 ]
 
 COSTS = [

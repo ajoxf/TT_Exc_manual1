@@ -14,9 +14,10 @@ level from the full cost of the round trip.
 
 | File | What it is |
 |---|---|
-| `TT_ZScore_Monitor.xlsx` | All structure, layout, formatting, conditional formatting and the Feed formulas |
+| `TT_ZScore_Monitor.xlsx` | **Your own `TTDashboard_2108V1_1.xlsx`, transformed** — same layout, fonts, fills, row heights, merges and hidden columns, plus the added z-score block and supporting sheets |
 | `TTZMonitor.bas` | The VBA engine — import into the workbook, then save as `.xlsm` |
-| `build/` | The openpyxl scripts that generate the `.xlsx`, so it can be regenerated |
+| `reference/TTDashboard_2108V1_1.xlsx` | The untouched original, so the build is reproducible and any change is diffable |
+| `build/` | The openpyxl scripts that transform the original, so it can be regenerated |
 
 `openpyxl` cannot author VBA, so the workbook ships as `.xlsx` + `.bas`. The **Setup** sheet
 inside the workbook has the six-step conversion; the short version:
@@ -35,7 +36,8 @@ inside the workbook has the six-step conversion; the short version:
 
 | Sheet | Visible | Purpose |
 |---|---|---|
-| `Dashboard` | yes | The existing layout, unchanged. **No cell on it is a formula.** New z-monitor block below the existing one, same visual style. |
+| `Dashboard` | yes | **Your sheet, unchanged.** Rows 1–15 keep every font, fill, height, merge and hidden column exactly. **No cell on it is a formula.** The z-score block is added at rows 17–21 in the same card style; the control strip at row 23. |
+| `Detail` | yes | Costs, break-even, warm-up gates, feed rate and the edge filter, for all four slots. |
 | `Config` | yes | Every parameter in its own labelled cell. Hot-reloaded — no restart, no VBA edit. |
 | `Feed` | hidden | Every `RTD()` formula in the workbook. |
 | `Buffer` | hidden | The flushed recovery snapshot of the circular buffers. |
@@ -209,17 +211,34 @@ Played through `winmm.dll PlaySound` asynchronously, so it never blocks the capt
 
 ---
 
-## Assumptions made while building this
+## What changed in your Dashboard, and nothing else
 
-The repository was empty, so these are recorded on the **Setup** sheet as well:
+Verified against `reference/TTDashboard_2108V1_1.xlsx`: every label, font, size, colour, number
+format, row height, column width, hidden column (`A`, `B`, `C`, `G`, `O`), merge and the print
+area are identical. Four deliberate changes:
 
-- **The `Dashboard` layout was reconstructed** from the cell references in the spec — `C4`,
-  `B6`, `C7`, `H7`/`H8`, `P7`/`P8`, `H12`/`H13`/`H14`/`I14`, `L3`. Those coordinates are
-  honoured exactly; the rows around them are a best reconstruction. Compare against the live
-  sheet before relying on it.
-- **The 3:2:1 ask row now mirrors the bid row:** `I15` uses `H14` (CL **bid**), not `I14`. The
-  bid row `H15` is unchanged and correct as written. This is the convention the spec described —
-  please confirm it is the one you want.
+- **Every `RTD()` formula moved to the hidden `Feed` sheet.** The visible cells keep their exact
+  styling and become VBA-written values. A cell holding a live `RTD()` formula repaints whenever
+  the feed moves, and that cannot be prevented while the formula is in the cell.
+- **`=TEXT(NOW(),"hh:mm:ss")` in `L3` removed.** `NOW()` is volatile, so it forced a full
+  recalculation of the workbook on every RTD update. VBA writes the same string into the same
+  cell, in the same format.
+- **`I15` corrected** to reference `H14` (CL **bid**) rather than `I14`, so the 3:2:1 ask mirrors
+  the bid. The bid row `H15` was already right.
+- **`J15` added** — the 3:2:1 row was the only spread row with no Gap cell.
+
+Added: the z-score block at rows 17–21, and the control strip at row 23. Rows 1–15 are untouched.
+
+### One arithmetic point to confirm
+
+Your rows 9 quote the spread as bid-minus-bid and ask-minus-ask, so the **Gap** there is a
+*difference of gaps* (`42×HO_gap − CL_gap`), which understates the cost of crossing and can go
+negative. The crossing convention — sell LegB at the bid and buy LegA at the ask, mirrored for
+the ask — makes the Gap the real round-trip cost and always positive. Your own 3:2:1 bid row
+already used it.
+
+`SPREAD_QUOTE_CONVENTION` on `Config` ships as `CROSSING`; set it to `SAME_SIDE` to get your
+original rows-9 arithmetic back and compare the two side by side.
 - **`USD_PER_POINT` for the 3:2:1 crack is 3,000, not 1,000.** The pack is three
   crude-equivalents, so one cent of crack is $30 per pack. `CONTRACTS_CHARGED` is 6
   (2 RB + 1 HO + 3 CL). Both are `Config` cells.

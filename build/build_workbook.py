@@ -9,7 +9,10 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from openpyxl import Workbook, load_workbook
-import wb_common, wb_config, wb_dashboard, wb_detail, wb_feed, wb_other
+import wb_common, wb_config, wb_transform, wb_detail, wb_feed, wb_other
+
+REFERENCE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        'reference', 'TTDashboard_2108V1_1.xlsx')
 
 
 PARAM_NAMES = {n for grp in (wb_config.ENGINE, wb_config.WINDOW, wb_config.SIGNAL,
@@ -31,10 +34,11 @@ def cfg_row_map(ws):
 
 
 def phase1(out):
-    wb = Workbook()
-    wb.remove(wb.active)
-
-    wb_dashboard.build(wb)
+    # Start from the user's OWN workbook so every font, fill, row height, merge
+    # and column width is preserved exactly. Nothing about the Dashboard's
+    # appearance is regenerated.
+    wb = load_workbook(REFERENCE)
+    wb_transform.transform(wb)
     wb_detail.build(wb)
     cfg, tbl_marker, first_spread_row = wb_config.build(wb)
     wb_feed.build(wb)
@@ -43,6 +47,10 @@ def phase1(out):
     wb_other.build_setup(wb, cfg_row_map(cfg))
 
     for ws in wb:
+        # The Dashboard is the user's own sheet - its page setup is theirs,
+        # including a print area of $A$2:$A$18 that we deliberately leave alone.
+        if ws.title == "Dashboard":
+            continue
         ws.page_setup.orientation = "landscape"
         ws.page_setup.fitToWidth = 1
         ws.page_setup.fitToHeight = 0
@@ -75,8 +83,23 @@ def normalise_booleans(wb):
     return n
 
 
+def restore_dashboard_page_setup(wb):
+    """LibreOffice's recalculation pass normalises page setup (it rewrote the
+    Dashboard's scale from 91 to 100). The Dashboard is the user's own sheet,
+    so put its print settings back exactly as they were."""
+    from copy import copy
+    src = load_workbook(REFERENCE)["Dashboard"]
+    dst = wb["Dashboard"]
+    dst.page_setup = copy(src.page_setup)
+    dst.page_margins = copy(src.page_margins)
+    dst.print_area = src.print_area
+    dst.sheet_properties.pageSetUpPr = copy(src.sheet_properties.pageSetUpPr)
+    dst.print_options = copy(src.print_options)
+
+
 def phase2(out):
     wb = load_workbook(out)
+    restore_dashboard_page_setup(wb)
     n = normalise_booleans(wb)
     print(f"phase2: {n} boolean cells restored to literals")
     wb_feed.inject_formulas(wb["Feed"])
