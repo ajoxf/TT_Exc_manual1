@@ -1,0 +1,4 @@
+ticks/
+~$*.xls*
+*.xlsm
+build/__pycache__/
