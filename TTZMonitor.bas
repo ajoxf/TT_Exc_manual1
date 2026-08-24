@@ -60,6 +60,12 @@ Private Const SND_ASYNC As Long = &H1
 Private Const SND_FILENAME As Long = &H20000
 Private Const SND_NODEFAULT As Long = &H2
 
+' MIN_HISTORY_MIN is capped at this fraction of LOOKBACK_MIN. The window
+' span can only approach the lookback from below, so the gate has to sit
+' strictly under it or it can never be met. Proportional, so it scales with
+' whatever lookback is configured.
+Private Const HIST_GATE_MAX_FRAC As Double = 0.99
+
 '------------------------------------------------------------------ sheets ---
 Private Const SH_DASH As String = "Dashboard"
 Private Const SH_DET  As String = "Detail"
@@ -235,6 +241,7 @@ Private gCaptureCount   As Long          ' captures since the last watchdog
 Private gMeasuredHz     As Double        ' measured captures per second
 Private gLastRateCalc   As Double
 Private gTTState        As String        ' TT's own status text, when it is not an id
+Private gHistClamp      As String        ' set when MIN_HISTORY_MIN had to be clamped
 Private gFlushRows(1 To MAX_SPREADS) As Long
 
 '==============================================================================
@@ -411,6 +418,14 @@ Private Function RateSummary() As String
     st = CfgL("STORE_MIN_INTERVAL_MS", 0)
     If Len(gTTState) > 0 Then
         RateSummary = gTTState & "   -   log in to TT; the RTD server is answering"
+        Exit Function
+    End If
+    ' A clamped history gate goes FIRST: it is a config error the operator has
+    ' to see, and the rate detail behind it is only ever informational.
+    If Len(gHistClamp) > 0 Then
+        RateSummary = "CONFIG: " & gHistClamp & "  |  capture " & _
+                      CfgL("CAPTURE_MS", 100) & "ms  |  paint " & _
+                      CfgL("PRICE_REFRESH_MS", 500) & "ms"
         Exit Function
     End If
     RateSummary = "capture " & CfgL("CAPTURE_MS", 100) & "ms (" & _
@@ -613,13 +628,16 @@ Private Sub EvalSlot(ByVal i As Long, vDer As Variant, ByVal t As Double)
 
     ' ---- two warm-up gates, BOTH required --------------------------------
     warming = (S(i).Count < minSamp) Or (S(i).Elapsed < minHist)
+    ' Report the SHORTFALL, not two rounded numbers. Formatting both sides at
+    ' "0" printed a satisfied-looking "120/120 min" while 119.99 < 120 still
+    ' held, which hid an unreachable gate behind a display artefact.
     If S(i).Count < minSamp And S(i).Elapsed < minHist Then
         S(i).Gate = "both: " & S(i).Count & "/" & minSamp & " samples, " & _
-                    Format$(S(i).Elapsed, "0") & "/" & Format$(minHist, "0") & " min"
+                    HistShort(S(i).Elapsed, minHist)
     ElseIf S(i).Count < minSamp Then
         S(i).Gate = "samples: " & S(i).Count & "/" & minSamp
     ElseIf S(i).Elapsed < minHist Then
-        S(i).Gate = "history: " & Format$(S(i).Elapsed, "0") & "/" & Format$(minHist, "0") & " min"
+        S(i).Gate = "history: " & HistShort(S(i).Elapsed, minHist)
     Else
         S(i).Gate = "ready"
     End If
@@ -841,6 +859,13 @@ Private Sub RecomputeStats(ByVal i As Long, ByVal t As Double, ByVal lookback As
         S(i).Mean = 0: S(i).Sigma = 0: S(i).StatsValid = False
     End If
 End Sub
+
+' "119.99/120.00 min, 0.007 short" - the shortfall carries enough precision
+' that it can never itself round away to zero while the gate is still failing.
+Private Function HistShort(ByVal elapsed As Double, ByVal minHist As Double) As String
+    HistShort = Format$(elapsed, "0.00") & "/" & Format$(minHist, "0.00") & " min, " & _
+                Format$(minHist - elapsed, "0.000") & " short"
+End Function
 
 Private Function WindowElapsedMin(ByVal i As Long, ByVal t As Double) As Double
     If S(i).Count = 0 Then Exit Function
@@ -1547,10 +1572,54 @@ Private Sub LoadConfig()
             End If
         End If
     Next r
+    ClampHistoryGate
     Exit Sub
 Fail:
     ' Every Cfg* getter falls back to its default, so a failure here degrades
-    ' to the shipped settings rather than stopping the monitor.
+    ' to the shipped settings rather than stopping the monitor. Those defaults
+    ' are themselves MIN_HISTORY_MIN 120 / LOOKBACK_MIN 120, so the guard has
+    ' to run on this path too or a failed read reinstates the unreachable gate.
+    Err.Clear
+    ClampHistoryGate
+End Sub
+
+' MIN_HISTORY_MIN >= LOOKBACK_MIN is unsatisfiable BY CONSTRUCTION, and it
+' fails silently. EvictOld drops every sample older than LOOKBACK_MIN, so the
+' span WindowElapsedMin measures is bounded ABOVE by LOOKBACK_MIN and only ever
+' approaches it from below. Asking for the whole lookback leaves the history
+' gate permanently unmet: no z, no signal, no chime, on every slot - while the
+' gate cell rounds to a satisfied-looking "120/120". Clamp it under the horizon
+' and say so on the status strip, rather than warming up forever in silence.
+'
+' The clamp is recomputed from the sheet on every load, so it never drifts and
+' it releases the moment the operator sets a workable value.
+Private Sub ClampHistoryGate()
+    Dim lookback As Double, minHist As Double, capped As Double, msg As String
+    On Error Resume Next
+    ' Reachable from the Fail path, where the dictionary may not exist yet.
+    If gCfg Is Nothing Then Set gCfg = CreateObject("Scripting.Dictionary")
+    lookback = CfgD("LOOKBACK_MIN", 120)
+    minHist = CfgD("MIN_HISTORY_MIN", 120)
+
+    If lookback > 0 And minHist >= lookback Then
+        capped = lookback * HIST_GATE_MAX_FRAC
+        gCfg("MIN_HISTORY_MIN") = capped
+        msg = "MIN_HISTORY_MIN " & Format$(minHist, "0.##") & " >= LOOKBACK_MIN " & _
+              Format$(lookback, "0.##") & " - unreachable, using " & Format$(capped, "0.##")
+    Else
+        msg = ""
+    End If
+
+    ' LoadConfig runs every CONFIG_REFRESH_MS, so log the transition only.
+    If msg <> gHistClamp Then
+        If Len(msg) > 0 Then
+            LogEvent "", "CONFIG CLAMPED", Format$(minHist, "0.##"), msg
+        Else
+            LogEvent "", "CONFIG OK", Format$(minHist, "0.##"), _
+                     "MIN_HISTORY_MIN is below LOOKBACK_MIN - history gate reachable"
+        End If
+        gHistClamp = msg
+    End If
     Err.Clear
 End Sub
 

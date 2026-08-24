@@ -207,6 +207,11 @@ Played through `winmm.dll PlaySound` asynchronously, so it never blocks the capt
   80,000 → ~5 MB across four spreads).
 - Statistics recomputed in full only at each publish, which is cheap at that cadence and clears
   any accumulated float drift.
+- **`MIN_HISTORY_MIN` must sit below `LOOKBACK_MIN`.** Eviction caps the window span at the
+  lookback, so the elapsed-history gate can only ever approach `LOOKBACK_MIN` from below and a
+  value at or above it is unsatisfiable — every slot reads `WARMING UP` forever, with no z, no
+  signal and no chime. The engine now clamps such a value to 99% of `LOOKBACK_MIN`, logs it and
+  shows it on the Dashboard status strip rather than warming up in silence.
 - **Time-based eviction on every append**, so a dead feed drains the window and goes cold
   rather than freezing a stale z.
 - Flushed to the hidden `Buffer` sheet every `FLUSH_SEC`, **decimated to `FLUSH_DECIMATE_MS`**

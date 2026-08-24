@@ -23,7 +23,7 @@ WINDOW = [
     ("LOOKBACK_MIN",            120,   120,  "min",   "Rolling window width (90 or 120). Changing it re-evaluates stored history on the next stats refresh and re-applies the warm-up gates."),
     ("STATS_REFRESH_MIN",         5,     5,  "min",   "How often mean/sigma are recomputed and re-published. Held FROZEN in between; live z is measured against the frozen values."),
     ("MIN_SAMPLES",             300,   300,  "quotes","Warm-up gate 1. Quotes needed before any z is shown."),
-    ("MIN_HISTORY_MIN",         120,   120,  "min",   "Warm-up gate 2. Elapsed collection needed before any z is shown. BOTH gates must pass."),
+    ("MIN_HISTORY_MIN",         120,   120,  "min",   "Warm-up gate 2. Elapsed collection needed before any z is shown. BOTH gates must pass. MUST BE BELOW LOOKBACK_MIN: eviction caps the window span at the lookback, so a value at or above it can never be met and the monitor warms up forever. Set at or above it and the engine clamps to 99% of LOOKBACK_MIN and says so on the Dashboard status strip."),
     ("MIN_SIGMA",                 0,     0,  "spread","Sigma floor. Below this the window is degenerate and NO z is shown. Set once sigma has actually been measured."),
     ("MAX_ABS_Z",                25,    25,  "z",     "Absurd-z guard. Above this, show 'no usable z' rather than a number."),
 ]
