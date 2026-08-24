@@ -176,6 +176,12 @@ z, sigma in dollars, a warning when the take-profit sits **beyond the mean** (th
 overshoot — a different bet from the one the z measured), and the edge verdict beside the
 highlight. **A highlighted z that fails the edge filter is not a trade.**
 
+`WIN_PCT` ships at **0.004** (0.4%), which targets about **1.25 sigma** — the same capture the edge
+filter already assumes at `ENTRY_Z`. That keeps the take-profit *inside* the mean on all three legged
+spreads. The older `0.01` put it at 2.8–3.0 sigma on two of the three, i.e. past the mean, which needs
+an overshoot rather than a reversion. A flat `TARGET_NET_USD` cannot serve all four slots at once —
+their sigma differs by 10x — which is why `PCT_NOTIONAL` is the default mode.
+
 `ENTRY_Z = 2.5` rather than 3.0 means less expected capture per entry, so it *raises* the sigma
 the spread must have by about 20%. The **Setup** sheet computes that table live off `Config`.
 
