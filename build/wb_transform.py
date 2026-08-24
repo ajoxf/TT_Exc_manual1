@@ -151,7 +151,8 @@ def transform(wb):
     rt.value = "-"
     rt.alignment = Alignment(horizontal="left", vertical="center")
     for addr, txt, fill in ((f"N{CTRL_ROW}", "  >  START  ", "C6EFCE"),
-                            (f"P{CTRL_ROW}", "  #  STOP  ", "FFC7CE")):
+                            (f"P{CTRL_ROW}", "  #  STOP  ", "FFC7CE"),
+                            (f"R{CTRL_ROW}", "  TEST CHIME  ", "D9E1F2")):
         c = _restyle(ws, addr, "B4", size=12, bold=True, color="FF111318")
         c.value = txt
         c.fill = PatternFill("solid", fgColor=fill)

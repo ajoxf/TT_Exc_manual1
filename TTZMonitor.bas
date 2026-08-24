@@ -234,6 +234,7 @@ Private gLastFlush      As Double
 Private gCaptureCount   As Long          ' captures since the last watchdog
 Private gMeasuredHz     As Double        ' measured captures per second
 Private gLastRateCalc   As Double
+Private gTTState        As String        ' TT's own status text, when it is not an id
 Private gFlushRows(1 To MAX_SPREADS) As Long
 
 '==============================================================================
@@ -408,6 +409,10 @@ End Sub
 Private Function RateSummary() As String
     Dim st As Long
     st = CfgL("STORE_MIN_INTERVAL_MS", 0)
+    If Len(gTTState) > 0 Then
+        RateSummary = gTTState & "   -   log in to TT; the RTD server is answering"
+        Exit Function
+    End If
     RateSummary = "capture " & CfgL("CAPTURE_MS", 100) & "ms (" & _
                   Format$(gMeasuredHz, "0.0") & "/s measured, " & _
                   IIf(gHiRes, "hi-res", "OnTime fallback") & ")  |  store " & _
@@ -444,8 +449,8 @@ Private Sub Tick()
         gLastConfig = t
     End If
 
-    Set fs = Sheets(SH_FEED)
-    Set d0 = Sheets(SH_DASH)
+    Set fs = ThisWorkbook.Sheets(SH_FEED)
+    Set d0 = ThisWorkbook.Sheets(SH_DASH)
     vLeg = fs.Range(fs.Cells(F_LEG_TOP, 4), fs.Cells(F_LEG_TOP + 2 * MAX_SPREADS - 1, 6)).Value2
     vDer = fs.Range(fs.Cells(F_DER_TOP, 1), fs.Cells(F_DER_TOP + F_DER_N - 1, 6)).Value2
 
@@ -890,7 +895,9 @@ End Sub
 Private Sub PaintPrices(vInst As Variant, vDer As Variant)
     ' ---- the user's Dashboard, cell for cell --------------------------
     Dim d As Worksheet
-    Set d = Sheets(SH_DASH)
+    Set d = ThisWorkbook.Sheets(SH_DASH)
+
+    gTTState = TTStateFrom(vInst)
 
     W d, "C6", TxtOf(vInst(I_RB, 2))
     W d, "C7", TxtOf(vInst(I_HO, 2))
@@ -917,6 +924,35 @@ Private Sub PaintPrices(vInst As Variant, vDer As Variant)
 
     PaintDetailPrices vInst, vDer
 End Sub
+
+' TT returns a status string where an instrument id belongs when it cannot
+' resolve one - "Not_Connected" when the platform is not logged in. Surface
+' TT's own words rather than leaving a screen of blanks, which looks identical
+' to a wrong symbol or a quiet market.
+Private Function TTStateFrom(vInst As Variant) As String
+    Dim k As Long, id As String, good As Long, bad As Long, firstBad As String
+    For k = 1 To F_INST_N
+        id = TxtOf(vInst(k, 2))
+        If Len(id) > 0 Then
+            If UCase$(Left$(id, 4)) = "NOT_" Then
+                bad = bad + 1
+                If Len(firstBad) = 0 Then firstBad = id
+            Else
+                good = good + 1
+            End If
+        End If
+    Next k
+
+    If bad > 0 And good = 0 Then
+        TTStateFrom = "TT: " & Replace(firstBad, "_", " ")
+    ElseIf bad > 0 Then
+        TTStateFrom = "TT: " & bad & " of " & (good + bad) & " unresolved"
+    ElseIf good = 0 Then
+        TTStateFrom = "WAITING FOR TT"
+    Else
+        TTStateFrom = ""
+    End If
+End Function
 
 Private Sub PaintLeg(d As Worksheet, ByVal r As Long, ByVal c0 As Long, _
                      vInst As Variant, ByVal idx As Long)
@@ -1007,7 +1043,7 @@ Private Sub PaintDetailPrices(vInst As Variant, vDer As Variant)
     Dim d As Worksheet, r As Long, k As Long
     Dim legRow As Variant, usdpt As Variant, lots As Double
     On Error Resume Next
-    Set d = Sheets(SH_DET)
+    Set d = ThisWorkbook.Sheets(SH_DET)
     If d Is Nothing Then Exit Sub
     lots = CfgD("LOTS", 1)
 
@@ -1040,7 +1076,7 @@ Private Sub PaintMonitor()
     ' ---- the z-score block added below the user's own layout -----------
     Dim d As Worksheet, k As Long, r As Long, slot As Long
     Dim rows_ As Variant, slots_ As Variant
-    Set d = Sheets(SH_DASH)
+    Set d = ThisWorkbook.Sheets(SH_DASH)
 
     rows_ = Array(ZR1, ZR2, ZR3)
     slots_ = Array(2, 1, 3)          ' display order: HO|CL, BZ-CL, 3:2:1
@@ -1084,7 +1120,9 @@ End Sub
 ' The compact status shown in the Window column: whichever of stale feed,
 ' warm-up gate, or sample count and feed rate the operator most needs.
 Private Function WindowText(ByVal i As Long) As String
-    If S(i).FeedStatus = "STALE" Then
+    If Len(gTTState) > 0 Then
+        WindowText = gTTState
+    ElseIf S(i).FeedStatus = "STALE" Then
         WindowText = "STALE FEED"
     ElseIf S(i).Gate <> "ready" Then
         WindowText = S(i).Gate
@@ -1097,7 +1135,7 @@ Private Sub PaintDetail()
     Dim d As Worksheet, i As Long, c As String
     Dim lots As Double, refreshMin As Double, ageMin As Double, t As Double
     On Error Resume Next
-    Set d = Sheets(SH_DET)
+    Set d = ThisWorkbook.Sheets(SH_DET)
     If d Is Nothing Then Exit Sub
     lots = CfgD("LOTS", 1)
     refreshMin = CfgD("STATS_REFRESH_MIN", 5)
@@ -1349,7 +1387,7 @@ Private Sub FlushBuffers()
     Dim b As Worksheet, i As Long, k As Long, idx As Long, n As Long
     Dim ct As Long, cv As Long, arr() As Double, dec As Double, lastT As Double
     On Error Resume Next
-    Set b = Sheets(SH_BUF)
+    Set b = ThisWorkbook.Sheets(SH_BUF)
     If b Is Nothing Then Exit Sub
     dec = CfgD("FLUSH_DECIMATE_MS", 1000)
     Application.EnableEvents = False
@@ -1398,7 +1436,7 @@ Public Sub WarmStart()
     Dim prev As Double, havePrev As Boolean, tt As Double, vv As Double
 
     On Error GoTo Done
-    Set b = Sheets(SH_BUF)
+    Set b = ThisWorkbook.Sheets(SH_BUF)
     t = TNow()
     maxAge = CfgD("WARM_START_MAX_AGE_MIN", 180)
     lookback = CfgD("LOOKBACK_MIN", 120)
@@ -1463,7 +1501,7 @@ Private Sub LogEvent(ByVal spreadName As String, ByVal ev As String, _
     Dim L As Worksheet, r As Long, maxRows As Long
     On Error Resume Next
     If Not CfgB("LOG_ENABLED", True) Then Exit Sub
-    Set L = Sheets(SH_LOG)
+    Set L = ThisWorkbook.Sheets(SH_LOG)
     If L Is Nothing Then Exit Sub
     r = L.Cells(L.Rows.Count, 1).End(xlUp).Row + 1
     If r < 4 Then r = 4
@@ -1483,7 +1521,8 @@ End Sub
 '==============================================================================
 Private Sub LoadConfig()
     Dim ws As Worksheet, v As Variant, r As Long, nm As String
-    Set ws = Sheets(SH_CFG)
+    On Error GoTo Fail
+    Set ws = ThisWorkbook.Sheets(SH_CFG)
     If gCfg Is Nothing Then Set gCfg = CreateObject("Scripting.Dictionary")
     gCfg.RemoveAll
     v = ws.Range("A1:B400").Value2
@@ -1495,13 +1534,19 @@ Private Sub LoadConfig()
             End If
         End If
     Next r
+    Exit Sub
+Fail:
+    ' Every Cfg* getter falls back to its default, so a failure here degrades
+    ' to the shipped settings rather than stopping the monitor.
+    Err.Clear
 End Sub
 
 Private Sub LoadSpreadDefs()
     Dim ws As Worksheet, fs As Worksheet, v As Variant, r As Long, i As Long
     Dim tag As String, legs As Variant, alts As Variant
-    Set ws = Sheets(SH_CFG)
-    Set fs = Sheets(SH_FEED)
+    On Error Resume Next
+    Set ws = ThisWorkbook.Sheets(SH_CFG)
+    Set fs = ThisWorkbook.Sheets(SH_FEED)
     v = ws.Range("A1:K400").Value2
     legs = fs.Range(fs.Cells(F_LEG_TOP, 3), fs.Cells(F_LEG_TOP + 2 * MAX_SPREADS - 1, 3)).Value2
     alts = fs.Range(fs.Cells(F_ALT_TOP, 1), fs.Cells(F_ALT_TOP + MAX_SPREADS - 1, 2)).Value2
@@ -1577,7 +1622,7 @@ Public Sub ApplyFormats()
     Dim d As Worksheet, det As Worksheet, i As Long, c As String, fmt As String
     Dim k As Long, r As Long, rows_ As Variant
     On Error Resume Next
-    Set d = Sheets(SH_DASH)
+    Set d = ThisWorkbook.Sheets(SH_DASH)
     rows_ = Array(ZR1, ZR2, ZR3)
     For k = 0 To 2
         r = rows_(k)
@@ -1603,7 +1648,7 @@ Public Sub ApplyFormats()
         End If
     End With
 
-    Set det = Sheets(SH_DET)
+    Set det = ThisWorkbook.Sheets(SH_DET)
     If Not det Is Nothing Then
         For i = 1 To MAX_SPREADS
             c = Mid$(SLOT_COL, i, 1)
@@ -1630,7 +1675,7 @@ End Function
 ' HELPERS
 '==============================================================================
 Private Function Dash() As Worksheet
-    Set Dash = Sheets(SH_DASH)
+    Set Dash = ThisWorkbook.Sheets(SH_DASH)
 End Function
 
 ' THE CORE RULE: compare first, write second.

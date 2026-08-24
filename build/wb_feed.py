@@ -110,8 +110,12 @@ def inject_formulas(ws, market_ref="=Dashboard!$C$4"):
 
     for row, sym, _ in INSTRUMENTS:
         ws[f"B{row}"] = f'=RTD("tt.rtd",,"Inst",$B$2,$A{row})'
+        # Guard on TT's status strings too. When the platform is not logged in
+        # the id cell holds "Not_Connected", and asking the RTD server for a
+        # Bid on that registers a meaningless topic.
         for col, fld in (("C", "Bid"), ("D", "Ask"), ("E", "High"), ("F", "Low")):
-            ws[f"{col}{row}"] = f'=IFERROR(IF($B{row}="","",VALUE(RTD("tt.rtd",,$B{row},"{fld}"))),"")'
+            ws[f"{col}{row}"] = (f'=IFERROR(IF(OR($B{row}="",LEFT($B{row},4)="Not_"),"",'
+                                 f'VALUE(RTD("tt.rtd",,$B{row},"{fld}"))),"")')
         ws[f"G{row}"] = f'=IF(OR($C{row}="",$D{row}=""),"",($C{row}+$D{row})/2)'
         ws[f"H{row}"] = f'=IF(OR($C{row}="",$D{row}=""),"",$D{row}-$C{row})'
 
