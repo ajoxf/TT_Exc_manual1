@@ -67,9 +67,9 @@ METRICS = [
     (54, "Win target (WIN_PCT x notional)", "", "usd"),
     (55, "Costs in spread units", "", "px"),
     (56, "Win in spread units", "", "px"),
-    (57, "Break-even spread", "absolute level", "px"),
-    (58, "TAKE-PROFIT spread", "absolute level", "px"),
-    (59, "TP distance", "spread units", "px"),
+    (57, "Break-even spread (mid)", "absolute level, mid scale", "px"),
+    (58, "TAKE-PROFIT spread (mid)", "absolute level, mid scale", "px"),
+    (59, "TP distance", "required MID move", "px"),
     (60, "TP in sigma", "x sigma", "num2"),
     (61, "Target z", "z at the TP level", "z"),
     (62, "TP beyond the mean?", "", "text"),
@@ -123,7 +123,7 @@ def build(wb):
 
     fmt_map = {"px": PX, "usd": USD, "usd0": "#,##0", "num1": "0.0", "num2": "0.00",
                "int": "#,##0", "z": Z2, "text": None}
-    bold_rows = {"SIGNAL", "EDGE VERDICT", "TOTAL COST (this mode)", "TAKE-PROFIT spread",
+    bold_rows = {"SIGNAL", "EDGE VERDICT", "TOTAL COST (this mode)", "TAKE-PROFIT spread (mid)",
                  "Z  (live, vs frozen mean & sigma)"}
 
     for row, lab, unit, kind in METRICS:
@@ -162,6 +162,10 @@ def build(wb):
                     "the edge filter asks whether the expected capture clears the round trip by EDGE_MULTIPLE. "
                     "A highlighted z that fails the edge filter is still not a trade worth taking.",
          color=C_WARN, bold=True)
+    note(ws, "B71", "Break-even and take-profit are MID levels, on the same scale as the mean, sigma and z - "
+                    "a mid move of the cost is exactly what pays the round trip. The entry reference above "
+                    "them is the TOUCH you actually get filled at. To work the exit order, cross back: add "
+                    "half the Bid-Ask Gap to close a short, subtract half to close a long.")
     note(ws, "B70", "ALERT_ONLY_IF_EDGE_PASSES on Config decides whether a failing edge filter also silences the "
                     "chime. It ships FALSE, so the chime follows ENTRY_Z alone.")
     return ws

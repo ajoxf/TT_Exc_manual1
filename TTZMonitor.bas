@@ -690,26 +690,39 @@ Private Sub EvalSlot(ByVal i As Long, vDer As Variant, ByVal t As Double)
         dirSign = 1: S(i).DirTxt = "LONG the spread": S(i).Entry = S(i).CurAsk
     End If
 
-    ' TAKE PROFIT = Entry + Costs + (WIN_PCT x Notional), signed by direction.
+    ' TAKE PROFIT = Mid + Costs + (WIN_PCT x Notional), signed by direction.
     ' A spread is not an outright, so "notional" has no single meaning - what
     ' the percentage is taken OF is a Config choice, and the three answers
     ' differ by roughly 10x. TP in sigma is the reachability check.
+    '
+    ' ANCHOR THE LEVELS TO THE MID, NOT TO THE ENTRY TOUCH. Entry is a touch,
+    ' and a touch already carries half the width (CurBid = CurMid - width/2).
+    ' Adding the FULL round-trip cost to it charged 1.5 widths of crossing
+    ' where only 1.0 is real, pushing break-even and take-profit half a width
+    ' too far - and TargetZ then compared a touch-scale TP against Mean, which
+    ' is mid-scale. Mean, Sigma, z and Capture all live on the mid, so the
+    ' levels do too: a mid move of CostUnits is exactly what pays the round
+    ' trip. Entry stays the touch, because that is the price you actually get.
     S(i).CostUnits = S(i).Total / (S(i).UsdPerPoint * lots)
     S(i).Notional = NotionalUsd(i, lots)
 
     If UCase$(CfgS("TP_MODE", "PCT_NOTIONAL")) = "TARGET_USD" Then
         S(i).WinUsd = targetUsd
-        S(i).TpRule = "Entry + Costs + TARGET_NET_USD"
+        S(i).TpRule = "Mid + Costs + TARGET_NET_USD"
     Else
         S(i).WinUsd = CfgD("WIN_PCT", 0.01) * S(i).Notional
-        S(i).TpRule = "Entry + Costs + " & Format$(CfgD("WIN_PCT", 0.01) * 100, "0.##") & _
+        S(i).TpRule = "Mid + Costs + " & Format$(CfgD("WIN_PCT", 0.01) * 100, "0.##") & _
                       "% x " & UCase$(CfgS("NOTIONAL_BASIS", "SPREAD_VALUE"))
     End If
     S(i).WinUnits = S(i).WinUsd / (S(i).UsdPerPoint * lots)
 
+    ' TPDist is the required move OF THE MID, which is what Sigma measures.
     S(i).TPDist = S(i).CostUnits + S(i).WinUnits
-    S(i).BE = S(i).Entry + dirSign * S(i).CostUnits
-    S(i).TP = S(i).Entry + dirSign * S(i).TPDist
+    S(i).BE = S(i).CurMid + dirSign * S(i).CostUnits
+    S(i).TP = S(i).CurMid + dirSign * S(i).TPDist
+
+    ' To work the exit order, cross back: buy at the ask to close a short, sell
+    ' at the bid to close a long. That touch is TP - dirSign x (width / 2).
     S(i).TPSig = S(i).TPDist / S(i).Sigma
     S(i).TargetZ = (S(i).TP - S(i).Mean) / S(i).Sigma
 

@@ -136,13 +136,13 @@ def build(wb):
 
     # ---- take-profit rule, stated where it is used ------------------------
     block_title(ws, "B27", "TAKE-PROFIT RULE")
-    label(ws, "B28", "Take Profit  =  Entry  +  Costs  +  (WIN_PCT x Notional)", bold=True)
+    label(ws, "B28", "Take Profit  =  Mid  +  Costs  +  (WIN_PCT x Notional)", bold=True)
     ws["B28"].font = f(10, bold=True, color=C_TITLE)
     for r, txt in (
-        (29, "Signed by direction: a short-spread trade takes profit BELOW entry, a long-spread trade above it."),
+        (29, "Signed by direction: a short-spread trade takes profit BELOW the mid, a long-spread trade above it."),
         (30, "Costs = commission + crossing, from the Config rate card. Both are shown in full on the Detail sheet."),
         (31, "WIN_PCT and NOTIONAL_BASIS are Config cells. NOTIONAL_BASIS decides what the percentage is taken OF."),
-        (32, "TP in sigma is the reachability check: how far the target sits from entry, in standard deviations. It "
+        (32, "TP in sigma is the reachability check: how far the target sits from the mid, in standard deviations. It "
              "turns amber when that exceeds the live |z| - meaning the target is PAST the mean, so it needs the "
              "spread to overshoot rather than merely revert. That is a different bet from the one z measured."),
     ):

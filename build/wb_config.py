@@ -37,7 +37,7 @@ SIGNAL = [
 
 COSTS = [
     ("LOTS",                      1,     1,  "lots",  "Contracts per leg, for the cost and take-profit maths."),
-    ("TP_MODE",     "PCT_NOTIONAL", "PCT_NOTIONAL", "text", "PCT_NOTIONAL: Take Profit = Entry + Costs + (WIN_PCT x Notional). TARGET_USD: the older rule, Take Profit = Entry + Costs + TARGET_NET_USD."),
+    ("TP_MODE",     "PCT_NOTIONAL", "PCT_NOTIONAL", "text", "PCT_NOTIONAL: Take Profit = Mid + Costs + (WIN_PCT x Notional). TARGET_USD: the older rule, Take Profit = Mid + Costs + TARGET_NET_USD. The level is anchored to the MID, not the entry touch - the touch already carries half the width."),
     ("WIN_PCT",                0.01,  0.01,  "fraction", "Percentage win, as a FRACTION - 0.01 is 1%, 0.02 is 2%. Used only when TP_MODE = PCT_NOTIONAL."),
     ("NOTIONAL_BASIS", "SPREAD_VALUE", "SPREAD_VALUE", "text", "What WIN_PCT is taken OF. SPREAD_VALUE = |spread| x USD/pt x LOTS. ONE_LEG = the crude leg's full contract value. BOTH_LEGS = both legs' contract value added. These differ by roughly 10x - read the note below the table before changing it."),
     ("TARGET_NET_USD",          150,   150,  "USD",   "Desired profit AFTER all costs. Used only when TP_MODE = TARGET_USD."),

@@ -154,15 +154,22 @@ losing trades invisibly; an overstated one only refuses trades, visibly.
 commission_cost    = CONTRACTS_CHARGED × COMMISSION_PER_LOT_ROUND_TURN × LOTS
 crossing_cost      = (spread_ask − spread_bid) × USD_PER_POINT × LOTS
 total_cost         = commission_cost + crossing_cost
-tp_distance_spread = (TARGET_NET_USD + total_cost) / (USD_PER_POINT × LOTS)
-break_even_spread  = entry_spread ± total_cost / (USD_PER_POINT × LOTS)
-take_profit_spread = entry_spread ± tp_distance_spread
+tp_distance_spread = (win_usd + total_cost) / (USD_PER_POINT × LOTS)
+break_even_spread  = spread_mid ± total_cost / (USD_PER_POINT × LOTS)
+take_profit_spread = spread_mid ± tp_distance_spread
+exit_order_level   = level ± (spread_ask − spread_bid) / 2
 capture            = 0.5 × |z| × sigma × USD_PER_POINT × LOTS
 pass if capture ≥ EDGE_MULTIPLE × total_cost
 ```
 
 Legging and listed crossing costs are shown side by side. The listed `CL-BZ` inter-product
 spread crosses one market instead of two — roughly half the cost, and no leg risk.
+
+Break-even and take-profit are **mid levels**, on the same scale as the mean, sigma and z — a
+mid move of `total_cost` is exactly what pays the round trip. The entry reference beside them is
+the **touch** you actually get filled at, which already carries half the width; anchoring the
+levels to it instead would charge 1.5 widths of crossing where only 1.0 is real. To work the
+exit order, cross back: add half the Gap to close a short, subtract half to close a long.
 
 Displayed live: break-even and take-profit as **absolute spread levels**, TP in sigma, target
 z, sigma in dollars, a warning when the take-profit sits **beyond the mean** (that needs an
