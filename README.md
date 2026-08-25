@@ -27,7 +27,9 @@ inside the workbook has the six-step conversion; the short version:
 3. `Alt+F11` → File → Import File… → `TTZMonitor.bas`.
 4. Paste the `Workbook_Open` / `Workbook_BeforeClose` stub (printed at the foot of the `.bas`)
    into `ThisWorkbook`. **Not optional** — see *Timers* below.
-5. Draw two shapes over `N2` / `P2` on `Dashboard` and assign `StartMonitor` / `StopMonitor`.
+5. Draw three shapes over `N23` / `P23` / `R23` on `Dashboard` (the control strip is **row 23**) and
+   assign `StartMonitor` / `StopMonitor` / `TestChime`. Shapes are not bound to cells — only the
+   assigned macro matters. `F23` and `H23` are written by the VBA and are hard-coded; don't move them.
 6. Save, click **START**.
 
 ---

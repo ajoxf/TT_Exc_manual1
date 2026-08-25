@@ -63,14 +63,20 @@ def build_setup(wb, cfg_rows):
         "2.  File > Save As > Excel Macro-Enabled Workbook (.xlsm). Keep the same folder.",
         "3.  Alt+F11 to open the VBA editor.  File > Import File...  and choose TTZMonitor.bas.",
         "4.  In the editor, double-click ThisWorkbook and paste the two-line Workbook_Open / "
-        "Workbook_BeforeClose stub printed at the bottom of TTZMonitor.bas.  (Optional - it just "
-        "auto-starts the monitor and warm-starts the buffers.)",
-        "5.  Back on Dashboard, insert two shapes over cells N2 and P2 (Insert > Shapes > Rectangle), "
-        "right-click each > Assign Macro > StartMonitor and StopMonitor. Until you do, run them from Alt+F8.",
+        "Workbook_BeforeClose stub printed at the bottom of TTZMonitor.bas.  REQUIRED - see the "
+        "note below.",
+        "5.  Back on Dashboard, the control strip is ROW 23. Insert three shapes (Insert > Shapes > Rectangle) over the labelled cells N23 (\"> START\"), P23 (\"# STOP\") and R23 (\"TEST CHIME\"), then right-click each > Assign Macro > StartMonitor, StopMonitor and TestChime. A shape is not bound to the cell it sits on - only the assigned macro matters, so the position is cosmetic. Until you draw them, run all three from Alt+F8.",
         "6.  Save. Click START. The Feed sheet stays hidden; you never need to look at it.",
-        "Step 4 is NOT optional here. The capture timer is a Windows user32 timer, and one that outlives the "
+        "Step 4 is NOT optional. The capture timer is a Windows user32 timer, and one that outlives the "
         "workbook keeps firing into a module that no longer has its sheets - which crashes Excel. "
-        "Workbook_BeforeClose calls StopMonitor and kills it.",
+        "Workbook_BeforeClose calls StopMonitor and kills it.     "
+        "F23 and H23 ARE hard-coded in the module - F23 holds RUNNING / STOPPED, H23 the rate strip, both "
+        "rewritten on every paint - so do not move them. N23, P23 and R23 are only labelled backing cells "
+        "for the shapes; the engine never touches them.     "
+        "Run TestChime before going live: it plays the entry tone then the ceiling tone, so the sound path "
+        "is verified without waiting for warm-up and a real crossing. On a headless or remote-desktop "
+        "machine with no audio device PlaySound fails silently, so TestChime can report success having "
+        "played nothing.",
     ]
     r = 3
     for s in steps:
