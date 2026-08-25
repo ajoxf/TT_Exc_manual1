@@ -111,6 +111,7 @@ Private Const R_TP As Long = 58:     Private Const R_TPD As Long = 59
 Private Const R_TPS As Long = 60:    Private Const R_TZ As Long = 61
 Private Const R_BEYOND As Long = 62
 Private Const R_CAP As Long = 64:    Private Const R_REQ As Long = 65
+Private Const R_MEANBID As Long = 70: Private Const R_MEANASK As Long = 71
 Private Const R_VERD As Long = 66:   Private Const R_MINSIG As Long = 67
 
 '-------------------------------------------------- Dashboard row map --------
@@ -170,6 +171,11 @@ Private Type SpreadState
     ' --- published statistics --------------------------------------------
     Mean             As Double
     Sigma            As Double
+    ' The mean is a MID. These are the same mean expressed on each touch, so
+    ' each side reads as the price that side would actually deal at.
+    MeanBid          As Double
+    MeanAsk          As Double
+    HaveMeanTouch    As Boolean
     StatsValid       As Boolean
     StatsN           As Long
     LastStatsTime    As Double
@@ -693,6 +699,21 @@ Private Sub EvalSlot(ByVal i As Long, vDer As Variant, ByVal t As Double)
         S(i).XLst = IIf(xAlt >= 0, xAlt, "n/a")
     End If
     S(i).Total = S(i).Commission + xOwn
+
+    ' ---- the mean, expressed on each touch --------------------------------
+    ' Mean and Sigma are computed on MIDS, but you never deal at the mid: you
+    ' sell the bid to get short and buy the ask to get long. Offset the mean by
+    ' half the LIVE gap so each side reads as the price that side would deal at
+    ' if the spread were sitting exactly on its mean. Deliberately outside the
+    ' HaveTrade gate below - it is worth seeing while the window is still
+    ' warming, which is when the operator is deciding whether to bother.
+    If S(i).StatsValid And S(i).HaveTouch Then
+        S(i).MeanBid = S(i).Mean - (S(i).CurAsk - S(i).CurBid) / 2
+        S(i).MeanAsk = S(i).Mean + (S(i).CurAsk - S(i).CurBid) / 2
+        S(i).HaveMeanTouch = True
+    Else
+        S(i).MeanBid = 0: S(i).MeanAsk = 0: S(i).HaveMeanTouch = False
+    End If
 
     ' ---- direction, break-even, take-profit, edge filter -----------------
     If Not S(i).HaveTrade Or Not S(i).HaveTouch Then
@@ -1221,6 +1242,13 @@ Private Sub PaintDetail()
             W d, c & R_MEAN, "": W d, c & R_SIG, "": W d, c & R_SIGUSD, "": W d, c & R_AGE, "-"
         End If
 
+        If S(i).HaveMeanTouch Then
+            W d, c & R_MEANBID, S(i).MeanBid
+            W d, c & R_MEANASK, S(i).MeanAsk
+        Else
+            W d, c & R_MEANBID, "": W d, c & R_MEANASK, ""
+        End If
+
         If S(i).HaveTrade Then W d, c & R_Z, S(i).Z Else W d, c & R_Z, ""
         W d, c & R_SIGNAL, S(i).Signal
 
@@ -1267,7 +1295,7 @@ Private Sub BlankSlot(d As Worksheet, ByVal c As String)
               R_SAMP, R_ELAP, R_GATE, R_RATE, R_FSTAT, R_MEAN, R_SIG, R_SIGUSD, R_AGE, _
               R_Z, R_DIR, R_ENTRY, R_COMM, R_XLEG, R_XLST, R_TOT, R_TPRULE, R_NOTIONAL, _
               R_WINUSD, R_COSTU, R_WINU, R_BE, R_TP, R_TPD, R_TPS, R_TZ, R_BEYOND, _
-              R_CAP, R_REQ, R_VERD, R_MINSIG)
+              R_CAP, R_REQ, R_VERD, R_MINSIG, R_MEANBID, R_MEANASK)
     For k = LBound(r) To UBound(r)
         W d, c & r(k), ""
     Next k
@@ -1738,6 +1766,7 @@ Public Sub ApplyFormats()
             det.Range(c & R_BID & "," & c & R_ASK & "," & c & R_MID & "," & c & R_WIDTH & "," & _
                       c & R_MEAN & "," & c & R_SIG & "," & c & R_ENTRY & "," & c & R_BE & "," & _
                       c & R_TP & "," & c & R_TPD & "," & c & R_COSTU & "," & c & R_WINU & "," & _
+                      c & R_MEANBID & "," & c & R_MEANASK & "," & _
                       c & R_MINSIG).NumberFormat = fmt
         Next i
         det.Range("H6:M9,H13:M17").NumberFormat = "#,##0.0000"

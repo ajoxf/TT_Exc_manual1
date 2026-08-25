@@ -78,6 +78,9 @@ METRICS = [
     (65, "Required", "EDGE_MULTIPLE x total cost", "usd"),
     (66, "EDGE VERDICT", "", "text"),
     (67, "Min sigma to pass at live z", "spread units", "px"),
+    (69, "SECT:THE MEAN AT THE TOUCH  (live Gap - what you would actually deal at)", "", "sect"),
+    (70, "Mean for SHORTING the spread", "mean - Gap/2   (you sell the bid)", "px"),
+    (71, "Mean for LONGING the spread", "mean + Gap/2   (you buy the ask)", "px"),
 ]
 
 SPREAD_COLS = ["D", "E", "F", "G"]
@@ -124,6 +127,7 @@ def build(wb):
     fmt_map = {"px": PX, "usd": USD, "usd0": "#,##0", "num1": "0.0", "num2": "0.00",
                "int": "#,##0", "z": Z2, "text": None}
     bold_rows = {"SIGNAL", "EDGE VERDICT", "TOTAL COST (this mode)", "TAKE-PROFIT spread (mid)",
+                 "Mean for SHORTING the spread", "Mean for LONGING the spread",
                  "Z  (live, vs frozen mean & sigma)"}
 
     for row, lab, unit, kind in METRICS:
@@ -158,14 +162,14 @@ def build(wb):
     ws.conditional_formatting.add("D34:G34", rule(C_GREY,  C_GREY_T,  '=D34<>"ready"'))
     ws.conditional_formatting.add("D62:G62", rule(C_AMBER, C_AMBER_T, '=LEFT(D62,3)="YES"'))
 
-    note(ws, "B69", "The EDGE FILTER is a different gate from ENTRY_Z. ENTRY_Z decides when the chime fires; "
+    note(ws, "B73", "The EDGE FILTER is a different gate from ENTRY_Z. ENTRY_Z decides when the chime fires; "
                     "the edge filter asks whether the expected capture clears the round trip by EDGE_MULTIPLE. "
                     "A highlighted z that fails the edge filter is still not a trade worth taking.",
          color=C_WARN, bold=True)
-    note(ws, "B71", "Break-even and take-profit are MID levels, on the same scale as the mean, sigma and z - "
+    note(ws, "B75", "Break-even and take-profit are MID levels, on the same scale as the mean, sigma and z - "
                     "a mid move of the cost is exactly what pays the round trip. The entry reference above "
                     "them is the TOUCH you actually get filled at. To work the exit order, cross back: add "
                     "half the Bid-Ask Gap to close a short, subtract half to close a long.")
-    note(ws, "B70", "ALERT_ONLY_IF_EDGE_PASSES on Config decides whether a failing edge filter also silences the "
+    note(ws, "B74", "ALERT_ONLY_IF_EDGE_PASSES on Config decides whether a failing edge filter also silences the "
                     "chime. It ships FALSE, so the chime follows ENTRY_Z alone.")
     return ws
