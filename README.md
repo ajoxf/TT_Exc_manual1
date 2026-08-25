@@ -165,11 +165,22 @@ pass if capture ≥ EDGE_MULTIPLE × total_cost
 Legging and listed crossing costs are shown side by side. The listed `CL-BZ` inter-product
 spread crosses one market instead of two — roughly half the cost, and no leg risk.
 
-`Detail` also carries the mean expressed on **each touch** — `mean ∓ Gap/2`, using the live Gap.
-The mean is computed on mids, but you never deal at the mid: you sell the bid to get short and buy
-the ask to get long, so the two sides are a full Gap apart. On the HO/CL crack quoted 0.1292 wide
-that is **$129.20 per lot** between the short-side and long-side mean. Shown from the moment
-statistics publish, warm-up or not.
+`Detail` also carries the mean expressed on **each touch**, laid out per direction — four rows off
+two numbers (`mean ∓ Gap/2`), using the live Gap:
+
+```
+SHORT (high to low)  ENTER            sell the bid    mean − Gap/2
+SHORT (high to low)  EXIT at the mean buy  the ask    mean + Gap/2
+LONG  (low to high)  ENTER            buy  the ask    mean + Gap/2
+LONG  (low to high)  EXIT at the mean sell the bid    mean − Gap/2
+```
+
+A short **enters** on the bid and **exits** on the ask, so its two mean-relevant prices sit on
+*opposite* sides of the mid. One row per direction would force the reader to flip sides in their
+head — the same touch/mid confusion that put half a width into break-even. Entering at the mean's
+touch and reverting exactly to the mean's other touch nets **minus the total cost**, which is the
+identity that ties this block to the cost model. Shown from the moment statistics publish, warm-up
+or not.
 
 Break-even and take-profit are **mid levels**, on the same scale as the mean, sigma and z — a
 mid move of `total_cost` is exactly what pays the round trip. The entry reference beside them is

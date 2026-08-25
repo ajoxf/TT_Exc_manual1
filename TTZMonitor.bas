@@ -111,7 +111,12 @@ Private Const R_TP As Long = 58:     Private Const R_TPD As Long = 59
 Private Const R_TPS As Long = 60:    Private Const R_TZ As Long = 61
 Private Const R_BEYOND As Long = 62
 Private Const R_CAP As Long = 64:    Private Const R_REQ As Long = 65
-Private Const R_MEANBID As Long = 70: Private Const R_MEANASK As Long = 71
+' The mean on each touch, laid out per DIRECTION. Only two distinct numbers,
+' but a short ENTERS on the bid and EXITS on the ask, so one row per
+' direction would force the reader to flip sides in their head - which is
+' exactly the touch/mid confusion that put half a width into break-even.
+Private Const R_SH_ENT As Long = 70:  Private Const R_SH_EXIT As Long = 71
+Private Const R_LG_ENT As Long = 72:  Private Const R_LG_EXIT As Long = 73
 Private Const R_VERD As Long = 66:   Private Const R_MINSIG As Long = 67
 
 '-------------------------------------------------- Dashboard row map --------
@@ -1243,10 +1248,15 @@ Private Sub PaintDetail()
         End If
 
         If S(i).HaveMeanTouch Then
-            W d, c & R_MEANBID, S(i).MeanBid
-            W d, c & R_MEANASK, S(i).MeanAsk
+            ' SHORT is high -> low: sell the bid now, buy the ask back at the mean.
+            W d, c & R_SH_ENT, S(i).MeanBid
+            W d, c & R_SH_EXIT, S(i).MeanAsk
+            ' LONG is low -> high: buy the ask now, sell the bid back at the mean.
+            W d, c & R_LG_ENT, S(i).MeanAsk
+            W d, c & R_LG_EXIT, S(i).MeanBid
         Else
-            W d, c & R_MEANBID, "": W d, c & R_MEANASK, ""
+            W d, c & R_SH_ENT, "": W d, c & R_SH_EXIT, ""
+            W d, c & R_LG_ENT, "": W d, c & R_LG_EXIT, ""
         End If
 
         If S(i).HaveTrade Then W d, c & R_Z, S(i).Z Else W d, c & R_Z, ""
@@ -1295,7 +1305,8 @@ Private Sub BlankSlot(d As Worksheet, ByVal c As String)
               R_SAMP, R_ELAP, R_GATE, R_RATE, R_FSTAT, R_MEAN, R_SIG, R_SIGUSD, R_AGE, _
               R_Z, R_DIR, R_ENTRY, R_COMM, R_XLEG, R_XLST, R_TOT, R_TPRULE, R_NOTIONAL, _
               R_WINUSD, R_COSTU, R_WINU, R_BE, R_TP, R_TPD, R_TPS, R_TZ, R_BEYOND, _
-              R_CAP, R_REQ, R_VERD, R_MINSIG, R_MEANBID, R_MEANASK)
+              R_CAP, R_REQ, R_VERD, R_MINSIG, _
+              R_SH_ENT, R_SH_EXIT, R_LG_ENT, R_LG_EXIT)
     For k = LBound(r) To UBound(r)
         W d, c & r(k), ""
     Next k
@@ -1766,7 +1777,8 @@ Public Sub ApplyFormats()
             det.Range(c & R_BID & "," & c & R_ASK & "," & c & R_MID & "," & c & R_WIDTH & "," & _
                       c & R_MEAN & "," & c & R_SIG & "," & c & R_ENTRY & "," & c & R_BE & "," & _
                       c & R_TP & "," & c & R_TPD & "," & c & R_COSTU & "," & c & R_WINU & "," & _
-                      c & R_MEANBID & "," & c & R_MEANASK & "," & _
+                      c & R_SH_ENT & "," & c & R_SH_EXIT & "," & _
+                      c & R_LG_ENT & "," & c & R_LG_EXIT & "," & _
                       c & R_MINSIG).NumberFormat = fmt
         Next i
         det.Range("H6:M9,H13:M17").NumberFormat = "#,##0.0000"
