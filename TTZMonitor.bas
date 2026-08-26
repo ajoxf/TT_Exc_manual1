@@ -235,6 +235,7 @@ Private gCaptureCount   As Long          ' captures since the last watchdog
 Private gMeasuredHz     As Double        ' measured captures per second
 Private gLastRateCalc   As Double
 Private gTTState        As String        ' TT's own status text, when it is not an id
+Private gHistClampLogged As Boolean
 Private gFlushRows(1 To MAX_SPREADS) As Long
 
 '==============================================================================
@@ -257,6 +258,7 @@ Public Sub StartMonitor()
     gLastRateCalc = TNow()
     gCaptureCount = 0
     gMeasuredHz = 0
+    gHistClampLogged = False
     gLastConfig = TNow()
     gLastFlush = TNow()
     gLastPaint = 0
@@ -612,14 +614,33 @@ Private Sub EvalSlot(ByVal i As Long, vDer As Variant, ByVal t As Double)
     End If
 
     ' ---- two warm-up gates, BOTH required --------------------------------
-    warming = (S(i).Count < minSamp) Or (S(i).Elapsed < minHist)
-    If S(i).Count < minSamp And S(i).Elapsed < minHist Then
+    ' Elapsed is the SPAN of the window: now minus its oldest surviving sample.
+    ' Eviction drops anything older than LOOKBACK_MIN, so that span approaches
+    ' the lookback but can never reach it. A MIN_HISTORY_MIN set at or above
+    ' LOOKBACK_MIN is therefore unsatisfiable - the monitor would warm up
+    ' forever. Clamp it just below, and say so once in the Log.
+    Dim effMinHist As Double
+    effMinHist = minHist
+    If effMinHist > lookback * 0.98 Then
+        effMinHist = lookback * 0.98
+        If Not gHistClampLogged Then
+            LogEvent "", "MIN_HISTORY_MIN CLAMPED", "", _
+                     "requested " & Format$(minHist, "0") & " min, but eviction keeps the " & _
+                     "window span below LOOKBACK_MIN (" & Format$(lookback, "0") & _
+                     "). Using " & Format$(effMinHist, "0.0") & " min."
+            gHistClampLogged = True
+        End If
+    End If
+
+    warming = (S(i).Count < minSamp) Or (S(i).Elapsed < effMinHist)
+    If S(i).Count < minSamp And S(i).Elapsed < effMinHist Then
         S(i).Gate = "both: " & S(i).Count & "/" & minSamp & " samples, " & _
-                    Format$(S(i).Elapsed, "0") & "/" & Format$(minHist, "0") & " min"
+                    Format$(S(i).Elapsed, "0.0") & "/" & Format$(effMinHist, "0.0") & " min"
     ElseIf S(i).Count < minSamp Then
         S(i).Gate = "samples: " & S(i).Count & "/" & minSamp
-    ElseIf S(i).Elapsed < minHist Then
-        S(i).Gate = "history: " & Format$(S(i).Elapsed, "0") & "/" & Format$(minHist, "0") & " min"
+    ElseIf S(i).Elapsed < effMinHist Then
+        S(i).Gate = "history: " & Format$(S(i).Elapsed, "0.0") & "/" & _
+                    Format$(effMinHist, "0.0") & " min"
     Else
         S(i).Gate = "ready"
     End If
