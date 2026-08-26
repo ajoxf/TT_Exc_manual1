@@ -705,10 +705,22 @@ Private Sub EvalSlot(ByVal i As Long, vDer As Variant, ByVal t As Double)
         Exit Sub
     End If
 
+    ' Direction in the operator's words: a rich spread is sold and expected to
+    ' fall, which is High to Low.
     If S(i).Z > 0 Then
-        dirSign = -1: S(i).DirTxt = "SHORT the spread": S(i).Entry = S(i).CurBid
+        dirSign = -1: S(i).DirTxt = "High to Low"
     Else
-        dirSign = 1: S(i).DirTxt = "LONG the spread": S(i).Entry = S(i).CurAsk
+        dirSign = 1: S(i).DirTxt = "Low to High"
+    End If
+
+    ' TP_ENTRY_BASIS = BID measures the take-profit from the bid, the price you
+    ' sell at. That is exact for a High-to-Low trade. On a Low-to-High trade you
+    ' would actually pay the ask, so the target is optimistic by the spread's
+    ' own gap - TOUCH prices each direction at the side it really trades on.
+    If UCase$(CfgS("TP_ENTRY_BASIS", "BID")) = "TOUCH" Then
+        If dirSign < 0 Then S(i).Entry = S(i).CurBid Else S(i).Entry = S(i).CurAsk
+    Else
+        S(i).Entry = S(i).CurBid
     End If
 
     ' TAKE PROFIT = Entry + Costs + (WIN_PCT x Notional), signed by direction.
@@ -1107,28 +1119,36 @@ Private Sub PaintMonitor()
 
         ' Live Z-score, Mean, Std Dev. Blank whenever the window is not
         ' usable - a blank is honest; a number would not be.
-        If S(slot).HaveTrade Then WC d, r, 8, S(slot).Z Else WC d, r, 8, ""
-        If S(slot).StatsValid Then
-            WC d, r, 9, S(slot).Mean
-            WC d, r, 10, S(slot).Sigma
+        ' F name | H Bid | I Direction | J z | K Mean | L Std Dev
+        If S(slot).HaveTouch Then WC d, r, 8, S(slot).CurBid Else WC d, r, 8, ""
+        If S(slot).HaveTrade Then
+            WC d, r, 9, S(slot).DirTxt
+            WC d, r, 10, S(slot).Z
         Else
             WC d, r, 9, "": WC d, r, 10, ""
         End If
-        WC d, r, 11, S(slot).Signal
-        WC d, r, 12, WindowText(slot)
+        If S(slot).StatsValid Then
+            WC d, r, 11, S(slot).Mean
+            WC d, r, 12, S(slot).Sigma
+        Else
+            WC d, r, 11, "": WC d, r, 12, ""
+        End If
+
+        ' N Signal | P Window | Q Costs | R Win | S TAKE PROFIT | T TP in sigma
+        WC d, r, 14, S(slot).Signal
+        WC d, r, 16, WindowText(slot)
 
         ' Columns G and O are hidden in this sheet, so the block uses
         ' F, H, I, J, K, L and N, P, Q, R, S - the same visible grid the
         ' blocks above use.
         If S(slot).HaveTrade And S(slot).HaveTouch Then
-            WC d, r, 14, S(slot).Entry
-            WC d, r, 16, S(slot).Total
-            WC d, r, 17, S(slot).WinUsd
-            WC d, r, 18, S(slot).TP
-            WC d, r, 19, S(slot).TPSig
+            WC d, r, 17, S(slot).Total
+            WC d, r, 18, S(slot).WinUsd
+            WC d, r, 19, S(slot).TP
+            WC d, r, 20, S(slot).TPSig
         Else
-            WC d, r, 14, "": WC d, r, 16, IIf(S(slot).HaveTouch, S(slot).Total, "")
-            WC d, r, 17, "": WC d, r, 18, "": WC d, r, 19, ""
+            WC d, r, 17, IIf(S(slot).HaveTouch, S(slot).Total, "")
+            WC d, r, 18, "": WC d, r, 19, "": WC d, r, 20, ""
         End If
     Next k
 
@@ -1647,12 +1667,12 @@ Public Sub ApplyFormats()
     rows_ = Array(ZR1, ZR2, ZR3)
     For k = 0 To 2
         r = rows_(k)
-        d.Cells(r, 8).NumberFormat = "0.00"                          ' z
-        d.Range(d.Cells(r, 9), d.Cells(r, 10)).NumberFormat = "0.0000"
-        d.Cells(r, 14).NumberFormat = "0.0000"                       ' entry
-        d.Range(d.Cells(r, 16), d.Cells(r, 17)).NumberFormat = "$#,##0.00"
-        d.Cells(r, 18).NumberFormat = "0.0000"                       ' take profit
-        d.Cells(r, 19).NumberFormat = "0.00"                         ' TP in sigma
+        d.Cells(r, 8).NumberFormat = "0.0000"                        ' Bid
+        d.Cells(r, 10).NumberFormat = "0.00"                         ' z
+        d.Range(d.Cells(r, 11), d.Cells(r, 12)).NumberFormat = "0.0000"
+        d.Range(d.Cells(r, 17), d.Cells(r, 18)).NumberFormat = "$#,##0.00"
+        d.Cells(r, 19).NumberFormat = "0.0000"                       ' take profit
+        d.Cells(r, 20).NumberFormat = "0.00"                         ' TP in sigma
     Next k
 
     ' The clock must stay TEXT. VBA writes Format$(Now, "hh:mm:ss"), and against

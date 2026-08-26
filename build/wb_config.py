@@ -40,6 +40,7 @@ COSTS = [
     ("TP_MODE",     "PCT_NOTIONAL", "PCT_NOTIONAL", "text", "PCT_NOTIONAL: Take Profit = Entry + Costs + (WIN_PCT x Notional). TARGET_USD: the older rule, Take Profit = Entry + Costs + TARGET_NET_USD."),
     ("WIN_PCT",                0.01,  0.01,  "fraction", "Percentage win, as a FRACTION - 0.01 is 1%, 0.02 is 2%. Used only when TP_MODE = PCT_NOTIONAL."),
     ("NOTIONAL_BASIS", "SPREAD_VALUE", "SPREAD_VALUE", "text", "What WIN_PCT is taken OF. SPREAD_VALUE = |spread| x USD/pt x LOTS. ONE_LEG = the crude leg's full contract value. BOTH_LEGS = both legs' contract value added. These differ by roughly 10x - read the note below the table before changing it."),
+    ("TP_ENTRY_BASIS",        "BID", "BID",  "text",  "Which price the take-profit is measured from. BID: always the bid, the price you sell at - exact for a High-to-Low trade, optimistic by the spread's own gap on a Low-to-High one. TOUCH: prices each direction at the side it really trades on (bid when selling, ask when buying)."),
     ("TARGET_NET_USD",          150,   150,  "USD",   "Desired profit AFTER all costs. Used only when TP_MODE = TARGET_USD."),
     ("EDGE_MULTIPLE",           1.5,   1.5,  "x",     "Expected capture must clear the round trip by this multiple."),
     ("RATE_ORIENT_PER_SIDE",   0.35,  0.35,  "USD",   "Orient clearing + execution, per contract per side. Source: Orient rate card 2026-08-21, Ver.26.8.17."),

@@ -49,10 +49,12 @@ Z_ROWS = [
     (20, "BZ - CL"),
     (21, "3:2:1"),
 ]
-Z_LEFT = [("F", "Spread"), ("H", "Z-score"), ("I", "Mean"),
-          ("J", "Std Dev"), ("K", "Signal"), ("L", "Window")]
-Z_RIGHT = [("N", "Entry"), ("P", "Costs $"), ("Q", "Win $"),
-           ("R", "TAKE PROFIT"), ("S", "TP in sigma")]
+# Bid sits second, beside the spread name: it is the price you sell at, and
+# the take-profit is measured from it. Direction is adjacent, in plain words.
+Z_LEFT = [("F", "Spread"), ("H", "Bid"), ("I", "Direction"), ("J", "Z-score"),
+          ("K", "Mean"), ("L", "Std Dev")]
+Z_RIGHT = [("N", "Signal"), ("P", "Window"), ("Q", "Costs $"), ("R", "Win $"),
+           ("S", "TAKE PROFIT"), ("T", "TP in sigma")]
 
 
 def _restyle(ws, dst, src, size=None, bold=None, color=None, numfmt=None):
@@ -103,15 +105,18 @@ def transform(wb):
     for r, name in Z_ROWS:
         lab = _restyle(ws, f"F{r}", "F12", size=16, bold=True)
         lab.value = name
-        # z, mean and sigma get the same large treatment as the prices above
-        for col, nf, sz in (("H", "0.00", 22), ("I", "0.0000", 16), ("J", "0.0000", 16)):
-            _restyle(ws, f"{col}{r}", "H12", size=sz, numfmt=nf)
-        for col in ("K", "L"):
+        # Bid, z and the take profit get the large treatment; the rest support them
+        _restyle(ws, f"H{r}", "H12", size=22, numfmt="0.0000")     # Bid
+        _restyle(ws, f"I{r}", "H12", size=11, numfmt="General")    # Direction
+        _restyle(ws, f"J{r}", "H12", size=22, numfmt="0.00")       # Z-score
+        for col in ("K", "L"):                                     # Mean, Std Dev
+            _restyle(ws, f"{col}{r}", "H12", size=16, numfmt="0.0000")
+        for col in ("N", "P"):                                     # Signal, Window
             _restyle(ws, f"{col}{r}", "H12", size=11, numfmt="General")
-        for col, nf, sz in (("N", "0.0000", 14), ("P", "$#,##0.00", 14),
-                            ("Q", "$#,##0.00", 14), ("R", "0.0000", 22),
-                            ("S", "0.00", 14)):
-            _restyle(ws, f"{col}{r}", "H12", size=sz, numfmt=nf)
+        for col in ("Q", "R"):                                     # Costs, Win
+            _restyle(ws, f"{col}{r}", "H12", size=14, numfmt="$#,##0.00")
+        _restyle(ws, f"S{r}", "H12", size=22, numfmt="0.0000")     # TAKE PROFIT
+        _restyle(ws, f"T{r}", "H12", size=14, numfmt="0.00")       # TP in sigma
 
     # bottom border on the last row, matching the blocks above
     for col, _ in Z_LEFT + Z_RIGHT:
@@ -125,8 +130,8 @@ def transform(wb):
                            font=Font(name="Arial", bold=True, color=txt))
 
     for r, _ in Z_ROWS:
-        sig = f"$K${r}"
-        for rng in (f"H{r}", f"K{r}"):
+        sig = f"$N${r}"
+        for rng in (f"J{r}", f"N{r}"):
             for fill, txt, cond in (
                 ("FFC7CE", "9C0006", f'=OR({sig}="NO USABLE Z",{sig}="STALE FEED")'),
                 ("E7E6E6", "595959", f'={sig}="WARMING UP"'),
@@ -135,9 +140,9 @@ def transform(wb):
             ):
                 ws.conditional_formatting.add(rng, rule(fill, txt, cond))
         # TP beyond the mean needs an overshoot, not a reversion
-        ws.conditional_formatting.add(f"S{r}", rule(
+        ws.conditional_formatting.add(f"T{r}", rule(
             "FFEB9C", "9C5700",
-            f'=AND(ISNUMBER($S${r}),ISNUMBER($H${r}),$S${r}>ABS($H${r}))'))
+            f'=AND(ISNUMBER($T${r}),ISNUMBER($J${r}),$T${r}>ABS($J${r}))'))
 
     # --- control strip -------------------------------------------------
     # Rows 4 and 5 are 6.75 tall - spacer rows - so anything placed there would
