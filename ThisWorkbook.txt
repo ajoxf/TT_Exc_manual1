@@ -1,0 +1,7 @@
+Private Sub Workbook_Open()
+    TTZMonitor.Auto_Open
+End Sub
+
+Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    TTZMonitor.StopMonitor
+End Sub

@@ -62,9 +62,10 @@ def build_setup(wb, cfg_rows):
         "1.  Open TT_ZScore_Monitor.xlsx in Excel on the machine running TT and the TT RTD server.",
         "2.  File > Save As > Excel Macro-Enabled Workbook (.xlsm). Keep the same folder.",
         "3.  Alt+F11 to open the VBA editor.  File > Import File...  and choose TTZMonitor.bas.",
-        "4.  In the editor, double-click ThisWorkbook and paste the two-line Workbook_Open / "
-        "Workbook_BeforeClose stub printed at the bottom of TTZMonitor.bas.  (Optional - it just "
-        "auto-starts the monitor and warm-starts the buffers.)",
+        "4.  In the editor, double-click ThisWorkbook, clear the pane with Ctrl+A then Delete, and paste "
+        "the contents of ThisWorkbook.txt verbatim. Do NOT copy it out of TTZMonitor.bas - the copy "
+        "there is inside a comment block, and pasting it with the apostrophes attached gives "
+        "'Compile error: Expected End Sub'.",
         "5.  Back on Dashboard, insert two shapes over cells N2 and P2 (Insert > Shapes > Rectangle), "
         "right-click each > Assign Macro > StartMonitor and StopMonitor. Until you do, run them from Alt+F8.",
         "6.  Save. Click START. The Feed sheet stays hidden; you never need to look at it.",

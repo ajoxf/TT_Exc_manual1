@@ -1790,17 +1790,16 @@ Private Function Fmt(ByVal d As Double) As String
 End Function
 
 '==============================================================================
-' PASTE THIS INTO THE "ThisWorkbook" MODULE:
+' ThisWorkbook MODULE
 '
-'   Private Sub Workbook_Open()
-'       TTZMonitor.Auto_Open
-'   End Sub
+' Do NOT copy the stub from here. Every line in this block is a comment, and
+' pasting it with the apostrophes still attached leaves a Sub whose End Sub is
+' commented out - "Compile error: Expected End Sub".
 '
-'   Private Sub Workbook_BeforeClose(Cancel As Boolean)
-'       TTZMonitor.StopMonitor
-'   End Sub
+' Open ThisWorkbook.txt, which sits beside this file in the repository, and
+' copy its contents verbatim. It is plain code with nothing to strip.
 '
-' Workbook_BeforeClose is NOT optional when the high-resolution timer is in
-' use: a user32 timer that outlives the workbook will keep firing into a
-' module that no longer has its sheets, and that crashes Excel.
+' Workbook_BeforeClose is NOT optional: a user32 timer that outlives the
+' workbook keeps firing into a module that no longer has its sheets, and that
+' crashes Excel.
 '==============================================================================
