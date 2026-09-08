@@ -39,7 +39,7 @@ LEG_LABELS = {
 LISTED_REF = {1: 19, 2: 20, 3: 0, 4: 19}
 
 
-def build(wb):
+def build(wb, instr_rows=None):
     ws = wb.create_sheet("Feed")
     ws.sheet_view.showGridLines = False
     set_widths(ws, {"A": 40, "B": 34, "C": 13, "D": 13, "E": 13, "F": 13, "G": 13, "H": 13, "I": 60})
@@ -54,8 +54,13 @@ def build(wb):
                        "G": "Mid", "H": "Width"})
     ws["A5"].fill = PatternFill("solid", fgColor=C_HDR_FILL)
     ws["A5"].font = f(9, bold=True, color=C_HDR_TEXT)
-    for row, sym, desc in INSTRUMENTS:
-        value_cell(ws, f"A{row}", sym, align="left", bold=True)
+    for k, (row, sym, desc) in enumerate(INSTRUMENTS):
+        # The symbol comes from Config, so a contract roll is one visible edit.
+        if instr_rows:
+            value_cell(ws, f"A{row}", f"=Config!$B${instr_rows[k]}", align="left", bold=True)
+            ws[f"A{row}"].font = f(10, bold=True, color=C_LINK)
+        else:
+            value_cell(ws, f"A{row}", sym, align="left", bold=True)
         label(ws, f"I{row}", desc, size=9, color=C_NOTE)
         for col in "BCDEFGH":
             ws[f"{col}{row}"].border = BOX

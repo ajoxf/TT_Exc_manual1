@@ -932,6 +932,17 @@ Private Sub PaintPrices(vInst As Variant, vDer As Variant)
 
     gTTState = TTStateFrom(vInst)
 
+    ' Mirror the live symbols into the sheet's own symbol column. They were
+    ' static text left over from the original workbook, driving nothing - so
+    ' after a contract roll they would have gone on showing the expired month
+    ' while the feed subscribed to something else entirely.
+    W d, "B6", TxtOf(vInst(I_RB, 1))
+    W d, "B7", TxtOf(vInst(I_HO, 1))
+    W d, "B8", TxtOf(vInst(I_BZ, 1))
+    W d, "B9", TxtOf(vInst(I_CL, 1))
+    W d, "B10", TxtOf(vInst(I_CLBZ, 1))
+    W d, "B12", TxtOf(vInst(I_HOCL, 1))
+
     W d, "C6", TxtOf(vInst(I_RB, 2))
     W d, "C7", TxtOf(vInst(I_HO, 2))
     W d, "C8", TxtOf(vInst(I_BZ, 2))

@@ -65,6 +65,17 @@ PERSIST = [
     ("LOG_MAX_ROWS",          20000, 20000,  "rows",  "Log is trimmed to this many rows."),
 ]
 
+# TT short names, in the Feed instrument order. Rolling a contract means
+# editing these six cells - nothing else.
+INSTRUMENTS = [
+    ("RBV6", "RBOB Gasoline",              "leg of the 3:2:1"),
+    ("HOV6", "NY Harbor ULSD",             "leg of HO/CL and the 3:2:1"),
+    ("CLV6", "WTI Crude",                  "leg of every spread"),
+    ("BZV6", "Brent Last Day Financial",   "leg B of BZ - CL"),
+    ("CL Oct26 - BZ Oct26 Inter-Product", "Exchange-listed inter-product", "listed comparison"),
+    ("Oct26 HO-CL Crack", "Exchange-listed crack",                        "listed comparison"),
+]
+
 SPREADS = [
     # slot, enabled, name, mode, hedge, beta stamp, usd/pt, contracts charged, tick, dp, listed equivalent
     (1, True,  "BZ - CL  (Brent LDF - WTI)",  "LEGGED", 1.0,
@@ -178,6 +189,37 @@ def build(wb):
     label(ws, f"E{r}", "USD per lot per leg, round turn. This is what the cost model actually uses.", size=9)
     r += 2
 
+    # --- instrument / contract-roll table ----------------------------------
+    ws[f"A{r}"] = "INSTRUMENTS   -   CONTRACT ROLL"
+    ws[f"A{r}"].font = f(11, bold=True, color=C_HDR_TEXT)
+    for col in "ABCDE":
+        ws[f"{col}{r}"].fill = PatternFill("solid", fgColor=C_HDR_FILL)
+    r += 1
+    note(ws, f"A{r}", "These six cells are the ONLY place a TT short name appears. Every RTD call on the "
+                      "hidden Feed sheet reads them, and the Dashboard's own symbol column is written back "
+                      "from them, so the two can never disagree.", color="000000", bold=True)
+    r += 1
+    note(ws, f"A{r}", "CME month codes:  F Jan  G Feb  H Mar  J Apr  K May  M Jun  "
+                      "N Jul  Q Aug  U Sep  V Oct  X Nov  Z Dec")
+    r += 1
+    note(ws, f"A{r}", "Roll every leg of a spread together. A November Brent against an October WTI is a "
+                      "different instrument from the one whose mean and sigma you measured, and the window "
+                      "should be cleared when you change one.", color=C_WARN, bold=True)
+    r += 1
+    header_row(ws, r, {"A": "Slot", "B": "TT short name", "C": "Instrument", "D": "", "E": "Used as"},
+               fill=C_SECT_FILL, text="1F3864")
+    r += 1
+    instr_rows = []
+    for i, (sym, desc, role) in enumerate(INSTRUMENTS, start=1):
+        value_cell(ws, f"A{r}", f"INSTRUMENT_{i}", bold=True)
+        input_cell(ws, f"B{r}", sym)
+        ws[f"B{r}"].alignment = Alignment(horizontal="left")
+        value_cell(ws, f"C{r}", desc, align="left"); ws[f"C{r}"].font = f(9)
+        label(ws, f"E{r}", role, size=9, color=C_NOTE)
+        instr_rows.append(r)
+        r += 1
+    r += 2
+
     # --- spread definition table ------------------------------------------
     ws[f"A{r}"] = "SPREAD_TABLE_START   -   up to 4 monitored spreads, one buffer each"
     ws[f"A{r}"].font = f(11, bold=True, color=C_HDR_TEXT)
@@ -229,4 +271,4 @@ def build(wb):
                       "only the first is reachable - the others need the spread to travel 12 or 25 sigma, which it will "
                       "not do. Watch the TP-in-sigma cell on the Dashboard: above about 1 sigma it turns amber.",
          color=C_WARN)
-    return ws, tbl_marker, first_spread_row
+    return ws, tbl_marker, first_spread_row, instr_rows
