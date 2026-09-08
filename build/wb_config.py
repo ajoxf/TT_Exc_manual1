@@ -70,8 +70,8 @@ PERSIST = [
 INSTRUMENTS = [
     ("RBV6", "RBOB Gasoline",              "leg of the 3:2:1"),
     ("HOV6", "NY Harbor ULSD",             "leg of HO/CL and the 3:2:1"),
-    ("CLV6", "WTI Crude",                  "leg of every spread"),
-    ("BZV6", "Brent Last Day Financial",   "leg B of BZ - CL"),
+    ("CLX6", "WTI Crude",                  "leg of every spread"),
+    ("BZX6", "Brent Last Day Financial",   "leg B of BZ - CL"),
     ("CL Oct26 - BZ Oct26 Inter-Product", "Exchange-listed inter-product", "listed comparison"),
     ("Oct26 HO-CL Crack", "Exchange-listed crack",                        "listed comparison"),
 ]
@@ -205,6 +205,10 @@ def build(wb):
     note(ws, f"A{r}", "Roll every leg of a spread together. A November Brent against an October WTI is a "
                       "different instrument from the one whose mean and sigma you measured, and the window "
                       "should be cleared when you change one.", color=C_WARN, bold=True)
+    r += 1
+    note(ws, f"A{r}", "CL is a leg of ALL THREE spreads. Moving it to November while RBOB and ULSD stay in "
+                      "October turns the cracks into a crack PLUS a calendar spread - not the thing the "
+                      "z-score was measuring. Roll RBOB and ULSD with it.", color=C_WARN, bold=True)
     r += 1
     header_row(ws, r, {"A": "Slot", "B": "TT short name", "C": "Instrument", "D": "", "E": "Used as"},
                fill=C_SECT_FILL, text="1F3864")
