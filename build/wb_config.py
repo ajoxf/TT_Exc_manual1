@@ -72,8 +72,8 @@ INSTRUMENTS = [
     ("HOV6", "NY Harbor ULSD",             "leg of HO/CL and the 3:2:1"),
     ("CLX6", "WTI Crude",                  "leg of every spread"),
     ("BZX6", "Brent Last Day Financial",   "leg B of BZ - CL"),
-    ("CL Oct26 - BZ Oct26 Inter-Product", "Exchange-listed inter-product", "listed comparison"),
-    ("Oct26 HO-CL Crack", "Exchange-listed crack",                        "listed comparison"),
+    ("CL Nov26 - BZ Nov26 Inter-Product", "Exchange-listed inter-product", "listed comparison"),
+    ("Nov26 HO-CL Crack", "Exchange-listed crack",                        "listed comparison"),
 ]
 
 SPREADS = [
