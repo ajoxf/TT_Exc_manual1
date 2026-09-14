@@ -39,7 +39,7 @@ FORMULA_CELLS = (
 
 # the z-score block, added below the existing content
 Z_TITLE_ROW, Z_HDR_ROW, Z_TOP = 17, 18, 19
-CTRL_ROW = 23
+CTRL_ROW = 24
 # Columns A, B, C, G and O are HIDDEN in the original: A/B/C are the TT
 # plumbing (short names and instrument ids) and G/O hold the contract name
 # that also appears as the second wrapped line of F/N. So the added block uses
@@ -48,6 +48,7 @@ Z_ROWS = [
     (19, "HO | CL Crack"),
     (20, "BZ - CL"),
     (21, "3:2:1"),
+    (22, "CL Oct-Dec Calendar"),
 ]
 # Bid sits second, beside the spread name: it is the price you sell at, and
 # the take-profit is measured from it. Direction is adjacent, in plain words.
@@ -122,6 +123,22 @@ def transform(wb):
     for col, _ in Z_LEFT + Z_RIGHT:
         c = ws[f"{col}{Z_ROWS[-1][0]}"]
         c.border = copy(ws["H15"].border)
+
+    # --- the calendar's own price row -----------------------------------
+    # N..T rows 11-12 are empty in the original sheet, so the block sits there
+    # in the same style as the two above it.
+    ws.row_dimensions[11].height = 23.25
+    ws.row_dimensions[12].height = 50.25
+    for col, txt in (("N", "Symbol"), ("O", "Contract"), ("P", "Bid"), ("Q", "Ask"),
+                     ("R", "Gap"), ("S", "High"), ("T", "Low")):
+        h = _restyle(ws, f"{col}11", "N6", size=11, bold=True)
+        h.value = txt
+    lab = _restyle(ws, "N12", "N7", size=14, bold=True)
+    lab.value = "CL Oct-Dec\nCalendar"
+    lab.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    for col, nf in (("P", "0.00"), ("Q", "0.00"), ("R", "0.0000"),
+                    ("S", "0.00"), ("T", "0.00")):
+        _restyle(ws, f"{col}12", "P7", size=22, numfmt=nf)
 
     # --- conditional formatting, SMALL ranges only ----------------------
     def rule(fill, txt, formula):

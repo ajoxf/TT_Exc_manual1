@@ -16,8 +16,9 @@ INSTRUMENTS = [
     (9,  "BZV6", "Brent Last Day Financial Oct26"),
     (10, "CL Oct26 - BZ Oct26 Inter-Product", "Exchange-listed inter-product spread"),
     (11, "Oct26 HO-CL Crack", "Exchange-listed crack spread"),
+    (12, "CL Oct26-Dec26 Calendar", "Exchange-listed calendar spread - slot 4"),
 ]
-R_RB, R_HO, R_CL, R_BZ, R_CLBZ, R_HOCL = 6, 7, 8, 9, 10, 11
+R_RB, R_HO, R_CL, R_BZ, R_CLBZ, R_HOCL, R_CAL = 6, 7, 8, 9, 10, 11, 12
 
 DERIVED = [
     (16, "BZ - CL",                            "legged"),
@@ -33,10 +34,10 @@ LEG_LABELS = {
     1: ("CLV6",                                   "BZV6"),
     2: ("CLV6",                                   "HOV6 x 42"),
     3: ("CLV6",                                   "(2 x RBV6 + 1 x HOV6) x 42 / 3"),
-    4: ("(none - LISTED spread)",                 "CL Oct26 - BZ Oct26 Inter-Product"),
+    4: ("(none - LISTED spread)",                 "CL Oct26-Dec26 Calendar"),
 }
 # slot -> Feed derived row used for the LISTED crossing-cost comparison ("" = none)
-LISTED_REF = {1: 19, 2: 20, 3: 0, 4: 19}
+LISTED_REF = {1: 19, 2: 20, 3: 0, 4: 0}
 
 
 def build(wb, instr_rows=None):
@@ -165,4 +166,4 @@ def inject_formulas(ws, market_ref="=Dashboard!$C$4"):
             f'=IF(OR($D${R_RB}="",$D${R_HO}=""),"",($D${R_RB}*2*42+$D${R_HO}*1*42)/3)',
             f'=IF(OR($G${R_RB}="",$G${R_HO}=""),"",($G${R_RB}*2*42+$G${R_HO}*1*42)/3)')  # 3 LegB
     leg(31, "", "", "")                                                       # 4 LegA  (listed)
-    leg(32, f"=$C${R_CLBZ}", f"=$D${R_CLBZ}", f"=$G${R_CLBZ}")                # 4 LegB  listed
+    leg(32, f"=$C${R_CAL}", f"=$D${R_CAL}", f"=$G${R_CAL}")                   # 4 LegB  calendar

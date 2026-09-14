@@ -74,6 +74,7 @@ INSTRUMENTS = [
     ("BZX6", "Brent Last Day Financial",   "leg B of BZ - CL"),
     ("CL Nov26 - BZ Nov26 Inter-Product", "Exchange-listed inter-product", "listed comparison"),
     ("Nov26 HO-CL Crack", "Exchange-listed crack",                        "listed comparison"),
+    ("CL Oct26-Dec26 Calendar", "Exchange-listed calendar",                "slot 4 - monitored"),
 ]
 
 SPREADS = [
@@ -87,8 +88,8 @@ SPREADS = [
     (3, True,  "3:2:1 crack  (2RB+1HO-3CL)/3","LEGGED", 1.0,
      "RBV6/HOV6/CLV6, structural 3:2:1 - not a fitted beta",
      3000, 6, 0.01, 2, "(none listed)"),
-    (4, True,  "CL-BZ Inter-Product (listed)","LISTED", 1.0,
-     "Exchange-listed spread - beta not applicable",
+    (4, True,  "CL Oct26-Dec26 Calendar",     "LISTED", 1.0,
+     "Single listed calendar spread - beta not applicable",
      1000, 2, 0.01, 2, "n/a - this IS the listed spread"),
 ]
 

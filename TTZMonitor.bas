@@ -70,7 +70,7 @@ Private Const SH_LOG  As String = "Log"
 
 '--------------------------------------------------------- Feed row layout ---
 Private Const F_INST_TOP As Long = 6     ' A6:H11  RB HO CL BZ CLBZ HOCL
-Private Const F_INST_N   As Long = 6
+Private Const F_INST_N   As Long = 7
 Private Const F_DER_TOP  As Long = 16    ' A16:F20 derived + listed spreads
 Private Const F_DER_N    As Long = 5
 Private Const F_LEG_TOP  As Long = 25    ' C25:F32 monitor legs, 2 rows / slot
@@ -82,6 +82,7 @@ Private Const I_CL As Long = 3
 Private Const I_BZ As Long = 4
 Private Const I_CLBZ As Long = 5
 Private Const I_HOCL As Long = 6
+Private Const I_CAL  As Long = 7
 
 '--------------------------------------------------- Detail row map ----------
 Private Const R_NAME As Long = 21:   Private Const R_DEF As Long = 22
@@ -120,6 +121,7 @@ Private Const CB_P As Long = 16           ' column P - right block bid
 Private Const ZR1 As Long = 19            ' HO|CL crack   -> slot 2
 Private Const ZR2 As Long = 20            ' BZ - CL       -> slot 1
 Private Const ZR3 As Long = 21            ' 3:2:1         -> slot 3
+Private Const ZR4 As Long = 22            ' CL Oct-Dec Cal-> slot 4
 
 Private Const MAX_SPREADS As Long = 4
 Private Const SLOT_COL As String = "DEFG"      ' Detail column per slot
@@ -266,8 +268,8 @@ Public Sub StartMonitor()
     ArmCaptureTimer
     ScheduleWatchdog
 
-    W Dash, "F23", "RUNNING"
-    W Dash, "H23", RateSummary()
+    W Dash, "F24", "RUNNING"
+    W Dash, "H24", RateSummary()
     
     LogEvent "", "MONITOR STARTED", "", RateSummary() & _
              "  lookback=" & CfgD("LOOKBACK_MIN", 120) & "min" & _
@@ -286,8 +288,8 @@ Public Sub StopMonitor()
     Application.OnTime gNextWatch, "WatchdogTick", , False
     FlushBuffers
     FlushArchives True
-    W Dash, "F23", "STOPPED"
-    W Dash, "H23", "-"
+    W Dash, "F24", "STOPPED"
+    W Dash, "H24", "-"
     LogEvent "", "MONITOR STOPPED", "", ""
     Err.Clear
 End Sub
@@ -295,7 +297,7 @@ End Sub
 Public Sub Auto_Open()
     ' Deliberately does NOT auto-start: a cold start begins a fresh warm-up and
     ' the operator should decide when that clock begins.
-    W Dash, "F23", "STOPPED"
+    W Dash, "F24", "STOPPED"
     W Dash, "L3", Format$(Now, "hh:mm:ss")
 End Sub
 
@@ -396,7 +398,7 @@ Public Sub WatchdogTick()
     gCaptureCount = 0
 
     W Dash, "L3", Format$(Now, "hh:mm:ss")
-    W Dash, "H23", RateSummary()
+    W Dash, "H24", RateSummary()
 
     If (TNow() - gLastFlush) * 86400# >= CfgL("FLUSH_SEC", 60) Then
         FlushBuffers
@@ -966,6 +968,9 @@ Private Sub PaintPrices(vInst As Variant, vDer As Variant)
     PaintLeg d, 14, CB_H, vInst, I_CL
     Paint321 d, 15, CB_H, 3, vInst
 
+    ' the listed calendar, quoted directly by the exchange as one instrument
+    PaintLeg d, 12, CB_P, vInst, I_CAL
+
     PaintDetailPrices vInst, vDer
 End Sub
 
@@ -1122,10 +1127,10 @@ Private Sub PaintMonitor()
     Dim rows_ As Variant, slots_ As Variant
     Set d = ThisWorkbook.Sheets(SH_DASH)
 
-    rows_ = Array(ZR1, ZR2, ZR3)
-    slots_ = Array(2, 1, 3)          ' display order: HO|CL, BZ-CL, 3:2:1
+    rows_ = Array(ZR1, ZR2, ZR3, ZR4)
+    slots_ = Array(2, 1, 3, 4)       ' HO|CL, BZ-CL, 3:2:1, CL Oct-Dec calendar
 
-    For k = 0 To 2
+    For k = 0 To 3
         r = rows_(k): slot = slots_(k)
 
         ' Live Z-score, Mean, Std Dev. Blank whenever the window is not
@@ -1163,8 +1168,8 @@ Private Sub PaintMonitor()
         End If
     Next k
 
-    W d, "F23", IIf(gRunning, "RUNNING", "STOPPED")
-    W d, "H23", RateSummary()
+    W d, "F24", IIf(gRunning, "RUNNING", "STOPPED")
+    W d, "H24", RateSummary()
 
     PaintDetail
 End Sub
@@ -1675,8 +1680,8 @@ Public Sub ApplyFormats()
     Dim k As Long, r As Long, rows_ As Variant
     On Error Resume Next
     Set d = ThisWorkbook.Sheets(SH_DASH)
-    rows_ = Array(ZR1, ZR2, ZR3)
-    For k = 0 To 2
+    rows_ = Array(ZR1, ZR2, ZR3, ZR4)
+    For k = 0 To 3
         r = rows_(k)
         d.Cells(r, 8).NumberFormat = "0.0000"                        ' Bid
         d.Cells(r, 10).NumberFormat = "0.00"                         ' z
